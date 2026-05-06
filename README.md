@@ -28,18 +28,13 @@ cmake --build .
 | `e2e_trading_smoke` | `examples/e2e_trading_smoke.cpp` | Scripted E2E check with `--auth-only`; exit codes for CI. |
 | `market_data_example` | `examples/market_data_example.cpp` | Public gomarket order book + trades (no keys). |
 | `full_trader_example` | `examples/full_trader_example.cpp` | Larger demo: callbacks, MD client, place/modify/cancel, `try_recv_order`. |
-| `docs_ws_trade` | `examples/docs_ws_trade.cpp` | Docs-wire smoke: login, subscribe, logout; token via env vars. |
-| `docs_ws_envelope` | `examples/docs_ws_envelope.cpp` | Raw **Boost.Beast** WebSocket envelope (login/ping/subscribe/logout); **currently `ws://` only** in URL parser. |
 | `full_trader_rest` | `examples/full_trader_rest.cpp` | REST-only `GodarkRestClient`: session + encrypted place + cancel (`GDX_REST_URL`, keys). |
-
-**Not included:** a trivial `GET /time`-only sample that would require non-public headers from a full source build; use **`full_trader_rest`** (public **`GodarkRestClient`**) for REST.
 
 ### Environment quick reference
 
 - **Trading (most WS examples):** `GODARK_API_KEY_ID`, `GODARK_API_SECRET`, optional `GODARK_EDGE_URL` / `GDX_EDGE_URL`.
 - **REST (`full_trader_rest`):** `GDX_REST_URL`, `GDX_API_KEY_ID` / `GDX_API_SECRET` or `GDX_API_KEY` (see sample fallbacks).
 - **Market data:** `GODARK_EDGE_URL` or `GDX_EDGE_URL`; optional `GDX_TLS_SKIP_VERIFY` / `GODARK_TLS_SKIP_VERIFY`.
-- **`docs_ws_envelope`:** `GODARK_WS_URL` / `GDX_WS_URL` (**ws://** only in this sample); unset uses a loopback placeholder—override for real use.
 
 ## Layout
 
@@ -53,5 +48,3 @@ cmake --build .
 ## `conanfile.txt`
 
 Edit the `godark` version/channel to match what your Conan remote provides.
-
-Adding a new sample: put `examples/my_tool.cpp` and register it in **`examples/CMakeLists.txt`** with `godark_example(my_tool my_tool.cpp)` (or `add_executable` + `target_link_libraries` to `godark::godark`).

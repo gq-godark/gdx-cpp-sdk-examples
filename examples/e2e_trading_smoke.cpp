@@ -3,7 +3,6 @@
  *
  * Conventions:
  *   - Credentials from environment (never hard-coded)
- *   - Explicit exit codes for automation / CI
  *   - Optional flags for auth-only or full place+cancel
  *
  * Environment (GODARK_* preferred; GDX_* aliases supported):

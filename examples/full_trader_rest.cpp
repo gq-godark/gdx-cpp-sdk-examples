@@ -1,5 +1,6 @@
 /// Minimal REST-only demo: auth → ECDH session/setup → encrypted place + cancel (needs healthy stack).
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <optional>
 
@@ -9,22 +10,35 @@
 #include <godark/env_loader.hpp>
 #include "error_helpers.hpp"
 
+namespace {
+// Pull the first non-empty value from a list of env var names. Lets us prefer
+// the canonical GODARK_* names while still honoring the legacy GDX_* aliases.
+const char* getenv_first(std::initializer_list<const char*> names) {
+    for (const char* n : names) {
+        if (const char* v = std::getenv(n); v && v[0] != '\0') return v;
+    }
+    return nullptr;
+}
+}  // namespace
+
 int main() {
     godark::examples::load_dotenv();
 
     try {
-        const char* base = std::getenv("GDX_REST_URL");
-        const char* kid = std::getenv("GDX_API_KEY_ID");
-        const char* sec = std::getenv("GDX_API_SECRET");
-
+        // Leaving cfg.rest_base_url empty lets the SDK's resolver pick it up
+        // from GODARK_REST_URL / GDX_REST_URL or derive it from
+        // GODARK_EDGE_URL (so a single env var configures both protocols).
         godark::GodarkRestClient::Config cfg;
-        if (base && base[0] != '\0') cfg.rest_base_url = base;
-        else cfg.rest_base_url = "https://api.godark-dex.com";
+        if (const char* base = getenv_first({"GODARK_REST_URL", "GDX_REST_URL"})) {
+            cfg.rest_base_url = base;
+        }
 
-        if (kid && sec && kid[0] != '\0' && sec[0] != '\0') {
+        const char* kid = getenv_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
+        const char* sec = getenv_first({"GODARK_API_SECRET",  "GDX_API_SECRET"});
+        if (kid && sec) {
             cfg.api_key_id = kid;
             cfg.api_secret = sec;
-        } else if (const char* legacy = std::getenv("GDX_API_KEY"); legacy && legacy[0] != '\0') {
+        } else if (const char* legacy = getenv_first({"GODARK_API_KEY", "GDX_API_KEY"})) {
             cfg.legacy_api_key = legacy;
         } else {
             cfg.legacy_api_key = "test-key-1";

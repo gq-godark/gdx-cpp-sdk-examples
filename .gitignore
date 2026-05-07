@@ -3,3 +3,33 @@ CMakeUserPresets.json
 compile_commands.json
 .conan/
 *.user
+
+# Local env files (use `.env.example` as the template).
+.env
+.env.local
+!.env.example
+
+# Conan 2 generator output dropped at the repo root when `conan install`
+# is run from here instead of `build/`. Anchored to the root so any future
+# hand-written CMake files under `examples/` etc. are unaffected.
+/conan_toolchain.cmake
+/conanbuild.sh
+/conanrun.sh
+/conanbuildenv-*.sh
+/conanrunenv-*.sh
+/deactivate_conanbuild.sh
+/deactivate_conanrun.sh
+/conandeps_legacy.cmake
+/cmakedeps_macros.cmake
+/CMakePresets.json
+/Find*.cmake
+/module-*.cmake
+/*-Target-release.cmake
+/*-Target-debug.cmake
+/*-release-*-data.cmake
+/*-debug-*-data.cmake
+/*Targets.cmake
+/*Config.cmake
+/*ConfigVersion.cmake
+/*-config.cmake
+/*-config-version.cmake

@@ -6,7 +6,11 @@
 #include <godark/enums.hpp>
 #include <godark/rest_client.hpp>
 
+#include "env_loader.hpp"
+
 int main() {
+    godark::examples::load_dotenv();
+
     try {
         const char* base = std::getenv("GDX_REST_URL");
         const char* kid = std::getenv("GDX_API_KEY_ID");

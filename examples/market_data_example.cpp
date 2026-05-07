@@ -11,6 +11,8 @@
 #include <godark/godark.hpp>
 #include <nlohmann/json.hpp>
 
+#include "env_loader.hpp"
+
 namespace {
 
 std::atomic<bool> g_running{true};
@@ -40,6 +42,8 @@ bool tls_skip_verify() {
 } // namespace
 
 int main() {
+    godark::examples::load_dotenv();
+
     std::signal(SIGINT, handle_signal);
     std::signal(SIGTERM, handle_signal);
 

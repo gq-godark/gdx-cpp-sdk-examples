@@ -32,6 +32,8 @@
 
 #include <godark/godark.hpp>
 
+#include "env_loader.hpp"
+
 namespace {
 
 const char* env_first_non_empty(const char* primary, const char* fallback) {
@@ -78,6 +80,8 @@ bool parse_args(int argc, char** argv, Options& opt) {
 } // namespace
 
 int main(int argc, char** argv) {
+    godark::examples::load_dotenv();
+
     Options opt;
     if (!parse_args(argc, argv, opt)) return 1;
 

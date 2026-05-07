@@ -30,6 +30,8 @@
 #include <thread>
 #include <vector>
 
+#include "env_loader.hpp"
+
 static const char* DEFAULT_API_KEY_ID = "YOUR_API_KEY_ID";
 static const char* DEFAULT_API_SECRET = "YOUR_API_SECRET";
 static const char* SYMBOL = "BTC-USDC-PERP";
@@ -62,6 +64,8 @@ static bool env_truthy(std::initializer_list<const char*> names) {
 }
 
 int main() {
+    godark::examples::load_dotenv();
+
     const std::string sep(60, '=');
     std::cout << sep << "\n  GoDark SDK — Complete Trader Example (C++)\n" << sep << "\n";
 

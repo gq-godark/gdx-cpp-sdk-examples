@@ -1,0 +1,34 @@
+{
+  "name": "godark-cpp-examples",
+  "version-string": "0.1.0",
+  "dependencies": [
+    {
+      "name": "boost-system",
+      "version>=": "1.87.0"
+    },
+    {
+      "name": "boost-beast",
+      "version>=": "1.87.0"
+    },
+    {
+      "name": "boost-asio",
+      "version>=": "1.87.0"
+    },
+    {
+      "name": "boost-url",
+      "version>=": "1.87.0"
+    },
+    {
+      "name": "openssl",
+      "version>=": "3.4.4"
+    },
+    {
+      "name": "protobuf",
+      "version>=": "5.29.3"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.3"
+    }
+  ]
+}

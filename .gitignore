@@ -3,3 +3,5 @@ CMakeUserPresets.json
 compile_commands.json
 .conan/
 *.user
+*.tar.gz
+.env

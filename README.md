@@ -1,50 +1,91 @@
-# Godark C++ examples
+# GoDark C++ Examples (Darkpool MM Distribution)
 
-Sample programs that consume the **`godark`** package from **[Conan 2](https://docs.conan.io/)** only. There is **no** Git or source dependency on any SDK source tree: configure a Conan remote (e.g. [Conan Cloud](https://conan.io/cloud) or Artifactory) that publishes **`godark/<version>@gq/stable`** and run `conan install` for the CMake toolchain.
+This repository is a market-maker-facing distribution for GoDark's C++ SDK.
+It includes:
+
+- a prebuilt SDK (`sdk/lib/libgodark.a`, headers, and CMake package config)
+- minimal darkpool trading examples (market and limit order support)
+- a simple `.env` workflow (no shell `export` required)
 
 ## Prerequisites
 
-- Conan 2 (`pip install "conan>=2.4"`)
-- CMake ≥ 3.25, C++20 toolchain
-- Profile: `conan profile detect` (or your team’s profile)
-- Remote lists `godark` (see `conan search godark`)
+- Linux x86_64
+- CMake >= 3.25
+- Ninja (or another CMake generator)
+- C++20 toolchain (GCC >= 13 recommended)
+- system dependencies:
+
+```bash
+sudo apt-get install -y \
+    libboost-dev libboost-system-dev libssl-dev \
+    libprotobuf-dev protobuf-compiler nlohmann-json3-dev ninja-build
+```
+
+## Configure credentials
+
+Copy `.env.example` to `.env` and fill in your API credentials:
+
+```bash
+cp .env.example .env
+```
+
+Required keys:
+
+- `GODARK_API_KEY_ID`
+- `GODARK_API_SECRET`
+
+Optional:
+
+- `GODARK_EDGE_URL` (for local testing). If unset, examples use `wss://api.godark-dex.com`.
 
 ## Build
 
-From the **repository root**:
-
 ```bash
-mkdir -p build && cd build
-conan install .. --build=missing -s build_type=Release
-cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
-cmake --build .
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
-## Binaries (all Conan / public API)
+You can also use the preset:
 
-| Target | Source | What it does |
-|--------|--------|--------------|
-| `quickstart` | `examples/quickstart.cpp` | Minimal connect → limit sell → cancel. Needs `GODARK_API_KEY_ID` + `GODARK_API_SECRET`. |
-| `e2e_trading_smoke` | `examples/e2e_trading_smoke.cpp` | Scripted E2E check with `--auth-only`; exit codes for CI. |
-| `market_data_example` | `examples/market_data_example.cpp` | Public gomarket order book + trades (no keys). |
-| `full_trader_example` | `examples/full_trader_example.cpp` | Larger demo: callbacks, MD client, place/modify/cancel, `try_recv_order`. |
-| `full_trader_rest` | `examples/full_trader_rest.cpp` | REST-only `GodarkRestClient`: session + encrypted place + cancel (`GDX_REST_URL`, keys). |
+```bash
+cmake --preset release
+cmake --build build
+```
 
-### Environment quick reference
+## Examples
 
-- **Trading (most WS examples):** `GODARK_API_KEY_ID`, `GODARK_API_SECRET`, optional `GODARK_EDGE_URL` / `GDX_EDGE_URL`.
-- **REST (`full_trader_rest`):** `GDX_REST_URL`, `GDX_API_KEY_ID` / `GDX_API_SECRET` or `GDX_API_KEY` (see sample fallbacks).
-- **Market data:** `GODARK_EDGE_URL` or `GDX_EDGE_URL`; optional `GDX_TLS_SKIP_VERIFY` / `GODARK_TLS_SKIP_VERIFY`.
+| Target | Source | Purpose |
+|--------|--------|---------|
+| `quickstart` | `examples/quickstart.cpp` | Minimal connect -> place limit sell -> cancel |
+| `full_trader_example` | `examples/full_trader_example.cpp` | Full darkpool trading flow with callbacks, subscribe, place/modify/cancel |
+
+Order-type support in this MM distribution is limited to `MARKET` and `LIMIT`.
+
+## Packaging for Market Makers
+
+Create a clean distributable archive:
+
+```bash
+./scripts/package.sh
+```
+
+This creates `godark-cpp-sdk.tar.gz` and includes:
+
+- `sdk/`
+- `examples/`
+- `README.md`
+- `SDK_REFERENCE.md`
+- `.env.example`
+- CMake files (`CMakeLists.txt`, `CMakePresets.json`, `vcpkg.json`)
+
+Internal files like `scripts/`, `.git/`, build artifacts, and local `.env` are not included.
 
 ## Layout
 
 | Path | Purpose |
 |------|---------|
-| `conanfile.txt` | Requires `godark/0.1.0@gq/stable` + CMake generators |
-| `CMakeLists.txt` | Project root: `find_package(godark)` + `add_subdirectory(examples)` |
-| `examples/CMakeLists.txt` | Builds every sample executable linked to `godark::godark` |
-| `examples/*.cpp` | Sources for each binary |
-
-## `conanfile.txt`
-
-Edit the `godark` version/channel to match what your Conan remote provides.
+| `sdk/` | Prebuilt SDK: static library, headers, CMake package config |
+| `examples/` | Example source files |
+| `.env.example` | Credential template for local `.env` |
+| `SDK_REFERENCE.md` | API usage reference for trading integration |
+| `scripts/refresh_sdk.sh` | Internal-only SDK refresh script (not shipped in tar) |

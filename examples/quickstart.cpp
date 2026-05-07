@@ -11,6 +11,7 @@
 #include <godark/godark.hpp>
 
 #include "env_loader.hpp"
+#include "error_helpers.hpp"
 
 int main() {
     godark::examples::load_dotenv();
@@ -47,6 +48,10 @@ int main() {
             godark::OrderType::LIMIT,
             0.01,
             limit_price);
+        if (!ack.success) {
+            godark::examples::log_order_ack_failure(std::cerr, "[quickstart]", "place_order", ack);
+            return 1;
+        }
         std::cout << "Place OK -- order_id=" << ack.order_id << " price=" << limit_price << "\n";
 
         const char* skip_cancel = std::getenv("GODARK_SKIP_CANCEL");
@@ -54,13 +59,26 @@ int main() {
             std::cout << "Skipping cancel (GODARK_SKIP_CANCEL set) -- order remains in book\n";
         } else {
             auto cancel = client.cancel_order(ack.order_id, symbol);
+            if (!cancel.success) {
+                godark::examples::log_order_ack_failure(std::cerr, "[quickstart]", "cancel_order", cancel);
+                return 1;
+            }
             std::cout << "Cancel OK -- order_id=" << cancel.order_id << "\n";
         }
 
         client.disconnect();
         std::cout << "Disconnected\n";
+    } catch (const godark::OrderError& e) {
+        godark::examples::log_order_exception(std::cerr, "[quickstart]", "place/cancel", e);
+        return 1;
+    } catch (const godark::AuthenticationError& e) {
+        godark::examples::log_sdk_exception(std::cerr, "[quickstart]", "connect", "AuthenticationError", e);
+        return 1;
+    } catch (const godark::Error& e) {
+        godark::examples::log_sdk_exception(std::cerr, "[quickstart]", "session", "godark::Error", e);
+        return 1;
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[quickstart]", "main", "std::exception", e);
         return 1;
     }
 

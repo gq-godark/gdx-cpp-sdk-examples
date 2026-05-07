@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "env_loader.hpp"
+#include "error_helpers.hpp"
 
 static const char* DEFAULT_API_KEY_ID = "YOUR_API_KEY_ID";
 static const char* DEFAULT_API_SECRET = "YOUR_API_SECRET";
@@ -117,7 +118,11 @@ int main() {
 
     client.on_error = [&](const godark::Error& e) {
         ++error_count;
-        std::cerr << "SDK ERROR (non-fatal): " << e.what() << "\n";
+        if (auto* oe = dynamic_cast<const godark::OrderError*>(&e)) {
+            godark::examples::log_order_exception(std::cerr, "[full]", "non-fatal", *oe);
+        } else {
+            godark::examples::log_sdk_exception(std::cerr, "[full]", "non-fatal", "godark::Error", e);
+        }
     };
 
     // ── 3. Connect & authenticate ──────────────────────────────────
@@ -125,7 +130,7 @@ int main() {
     try {
         client.connect();
     } catch (const godark::Error& e) {
-        std::cerr << "Failed to connect: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[full]", "connect", "godark::Error", e);
         return 1;
     }
 
@@ -162,16 +167,37 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // ── 6. Place a limit BUY ───────────────────────────────────────
+    // Prices below assume a BTC mark near $80k (testnet/localnet). On
+    // environments that cap mark deviation (e.g. localnet at 1000 bps),
+    // override via GODARK_TEST_LIMIT_PRICE — that becomes the BUY price;
+    // the modify and SELL legs are derived as small offsets from it.
+    double buy_price    = 67500.0;
+    if (const char* p = std::getenv("GODARK_TEST_LIMIT_PRICE")) {
+        try { buy_price = std::stod(p); } catch (...) {}
+    }
+    const double modify_price = buy_price + 500.0;
+    const double sell_price   = buy_price + 5000.0;
     std::cout << "Placing limit BUY...\n";
     godark::OrderAck buy_ack;
     try {
         buy_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::LIMIT,
-            0.1, 67500.0, godark::TimeInForce::GTC);
+            0.1, buy_price, godark::TimeInForce::GTC);
+        if (!buy_ack.success) {
+            godark::examples::log_order_ack_failure(std::cerr, "[full]", "BUY place_order", buy_ack);
+            md.disconnect();
+            client.disconnect();
+            return 1;
+        }
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
+    } catch (const godark::OrderError& e) {
+        godark::examples::log_order_exception(std::cerr, "[full]", "BUY place_order", e);
+        md.disconnect();
+        client.disconnect();
+        return 1;
     } catch (const godark::Error& e) {
-        std::cerr << "BUY failed: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[full]", "BUY place_order", "godark::Error", e);
         md.disconnect();
         client.disconnect();
         return 1;
@@ -180,12 +206,18 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // ── 7. Modify the order ────────────────────────────────────────
-    std::cout << "Modifying order price to $68,000...\n";
+    std::cout << "Modifying order price to " << modify_price << "...\n";
     try {
-        auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, 68000.0);
-        std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
+        auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_price);
+        if (!mod_ack.success) {
+            godark::examples::log_order_ack_failure(std::cerr, "[full]", "modify_order", mod_ack);
+        } else {
+            std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
+        }
+    } catch (const godark::OrderError& e) {
+        godark::examples::log_order_exception(std::cerr, "[full]", "modify_order", e);
     } catch (const godark::Error& e) {
-        std::cerr << "Modify rejected: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[full]", "modify_order", "godark::Error", e);
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -195,15 +227,25 @@ int main() {
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            0.05, 95000.0);
-        std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
+            0.05, sell_price);
+        if (!sell_ack.success) {
+            godark::examples::log_order_ack_failure(std::cerr, "[full]", "SELL place_order", sell_ack);
+        } else {
+            std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        auto cancel_ack = client.cancel_order(sell_ack.order_id, SYMBOL);
-        std::cout << "SELL cancelled: order_id=" << cancel_ack.order_id << "\n";
+            auto cancel_ack = client.cancel_order(sell_ack.order_id, SYMBOL);
+            if (!cancel_ack.success) {
+                godark::examples::log_order_ack_failure(std::cerr, "[full]", "SELL cancel_order", cancel_ack);
+            } else {
+                std::cout << "SELL cancelled: order_id=" << cancel_ack.order_id << "\n";
+            }
+        }
+    } catch (const godark::OrderError& e) {
+        godark::examples::log_order_exception(std::cerr, "[full]", "SELL flow", e);
     } catch (const godark::Error& e) {
-        std::cerr << "Sell/cancel flow: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[full]", "SELL flow", "godark::Error", e);
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));

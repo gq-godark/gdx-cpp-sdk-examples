@@ -33,6 +33,7 @@
 #include <godark/godark.hpp>
 
 #include "env_loader.hpp"
+#include "error_helpers.hpp"
 
 namespace {
 
@@ -126,10 +127,15 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        // Far-from-market limit sell so the order rests without crossing
+        // Far-from-market limit sell so the order rests without crossing.
+        // Override via GODARK_TEST_LIMIT_PRICE on environments that cap mark
+        // deviation (e.g. localnet at 1000 bps).
         const std::string symbol = "BTC-USDC-PERP";
         const double qty         = 0.01;
-        const double price       = 999999.0;
+        double price             = 999999.0;
+        if (const char* p = std::getenv("GODARK_TEST_LIMIT_PRICE")) {
+            try { price = std::stod(p); } catch (...) {}
+        }
 
         std::cout << "[e2e] Placing LIMIT SELL " << qty << " @ " << price << " …\n";
         auto place_ack = client.place_order(
@@ -140,7 +146,7 @@ int main(int argc, char** argv) {
             price);
 
         if (!place_ack.success) {
-            std::cerr << "[e2e] ERROR: place_order rejected\n";
+            godark::examples::log_order_ack_failure(std::cerr, "[e2e]", "place_order", place_ack);
             return 3;
         }
         std::cout << "[e2e] Place OK — order_id=" << place_ack.order_id
@@ -149,7 +155,7 @@ int main(int argc, char** argv) {
         std::cout << "[e2e] Cancelling order …\n";
         auto cancel_ack = client.cancel_order(place_ack.order_id, symbol);
         if (!cancel_ack.success) {
-            std::cerr << "[e2e] ERROR: cancel_order rejected\n";
+            godark::examples::log_order_ack_failure(std::cerr, "[e2e]", "cancel_order", cancel_ack);
             return 4;
         }
         std::cout << "[e2e] Cancel OK — order_id=" << cancel_ack.order_id << "\n";
@@ -162,19 +168,19 @@ int main(int argc, char** argv) {
         return 0;
 
     } catch (const godark::AuthenticationError& e) {
-        std::cerr << "[e2e] AuthenticationError: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[e2e]", "connect", "AuthenticationError", e);
         return 2;
     } catch (const godark::ConnectionError& e) {
-        std::cerr << "[e2e] ConnectionError: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[e2e]", "connect", "ConnectionError", e);
         return 2;
     } catch (const godark::SessionError& e) {
-        std::cerr << "[e2e] SessionError: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[e2e]", "session", "SessionError", e);
         return 2;
     } catch (const godark::OrderError& e) {
-        std::cerr << "[e2e] OrderError: " << e.what() << "\n";
+        godark::examples::log_order_exception(std::cerr, "[e2e]", "place/cancel", e);
         return 3;
     } catch (const std::exception& e) {
-        std::cerr << "[e2e] Error: " << e.what() << "\n";
+        godark::examples::log_sdk_exception(std::cerr, "[e2e]", "main", "std::exception", e);
         return 2;
     }
 }

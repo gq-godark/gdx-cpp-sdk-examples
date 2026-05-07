@@ -11,14 +11,18 @@ Sample programs that consume the **`godark`** package from **[Conan 2](https://d
 
 ## Build
 
-From the **repository root**:
+From the **repository root** (the `--output-folder=build` flag keeps Conan's
+70+ generator files inside `build/` instead of dumping them at the repo root):
 
 ```bash
-mkdir -p build && cd build
-conan install .. --build=missing -s build_type=Release
-cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
-cmake --build .
+conan install . --output-folder=build --build=missing -s build_type=Release
+cmake --preset conan-release          # equivalent to: cmake -B build -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
+
+Binaries land in `build/examples/`. Conan also writes a small
+`CMakeUserPresets.json` at the repo root that points at `build/CMakePresets.json`;
+this is gitignored.
 
 ## Binaries (all Conan / public API)
 

@@ -6,7 +6,7 @@
 #include <godark/enums.hpp>
 #include <godark/rest_client.hpp>
 
-#include "env_loader.hpp"
+#include <godark/env_loader.hpp>
 #include "error_helpers.hpp"
 
 int main() {

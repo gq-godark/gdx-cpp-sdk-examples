@@ -30,7 +30,7 @@
 #include <thread>
 #include <vector>
 
-#include "env_loader.hpp"
+#include <godark/env_loader.hpp>
 #include "error_helpers.hpp"
 
 static const char* DEFAULT_API_KEY_ID = "YOUR_API_KEY_ID";

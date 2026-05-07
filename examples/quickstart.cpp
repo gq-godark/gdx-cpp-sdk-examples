@@ -10,7 +10,7 @@
 
 #include <godark/godark.hpp>
 
-#include "env_loader.hpp"
+#include <godark/env_loader.hpp>
 #include "error_helpers.hpp"
 
 int main() {

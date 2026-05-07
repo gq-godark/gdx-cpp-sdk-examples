@@ -94,6 +94,12 @@ int main() {
     // ── 2. Register callbacks before connecting ─────────────────────
     int order_count = 0;
     int position_count = 0;
+    int snapshot_count = 0;
+    int health_count = 0;
+    int balance_count = 0;
+    int margin_count = 0;
+    int funding_count = 0;
+    int settle_count = 0;
     int error_count = 0;
 
     client.on_order_update = [&](const godark::OrderUpdate& u) {
@@ -110,6 +116,59 @@ int main() {
         std::cout << "POS    side=" << godark::to_string(u.side)
                   << "  size=" << u.size
                   << "  entry=" << u.entry_price << "\n";
+    };
+
+    client.on_positions_snapshot = [&](const godark::PositionsSnapshot& s) {
+        ++snapshot_count;
+        std::cout << "SNAP   source=" << static_cast<int>(s.source)
+                  << "  rows=" << s.rows.size()
+                  << "  ts=" << s.server_timestamp << "\n";
+        for (const auto& row : s.rows) {
+            std::cout << "  -> symbol=" << row.symbol_id
+                      << "  side=" << godark::to_string(row.side)
+                      << "  size=" << row.size
+                      << "  entry=" << row.entry_price
+                      << "  mark=" << (row.mark_price ? *row.mark_price : "—")
+                      << "\n";
+        }
+    };
+
+    client.on_system_health = [&](const godark::SystemHealthUpdate& h) {
+        ++health_count;
+        std::cout << "HEALTH nodes=" << h.total_nodes
+                  << "  accepting=" << (h.accepting_orders ? "true" : "false")
+                  << "  ready=" << h.ready
+                  << "  degraded=" << h.degraded << "\n";
+    };
+
+    client.on_balance_update = [&](const godark::BalanceUpdate& b) {
+        ++balance_count;
+        std::cout << "BAL    user=" << b.user_uuid
+                  << "  shielded_raw=" << b.shielded_balance_raw
+                  << "  ts=" << b.timestamp << "\n";
+    };
+
+    client.on_margin_alert = [&](const godark::MarginAlert& a) {
+        ++margin_count;
+        std::cout << "MARGIN owner=" << a.owner
+                  << "  symbol=" << a.symbol_id
+                  << "  tier=" << a.tier
+                  << "  ratio_bps=" << a.margin_ratio_bps
+                  << "  recovered=" << (a.recovered ? "true" : "false") << "\n";
+    };
+
+    client.on_funding_rate_update = [&](const godark::FundingRateUpdate& f) {
+        ++funding_count;
+        std::cout << "FUND   symbol=" << f.symbol_id
+                  << "  current=" << f.current_rate
+                  << "  predicted=" << f.predicted_rate << "\n";
+    };
+
+    client.on_settlement_update = [&](const godark::SettlementUpdate& s) {
+        ++settle_count;
+        std::cout << "SETTLE batch=" << s.batch_id
+                  << "  status=" << static_cast<int>(s.status)
+                  << "  tx=" << s.tx_signature << "\n";
     };
 
     client.on_reconnect = []() {
@@ -273,6 +332,12 @@ int main() {
     std::cout << sep << "\n  Session complete\n"
               << "  Order updates received (via callback): " << order_count << "\n"
               << "  Position updates received:             " << position_count << "\n"
+              << "  Positions snapshots received:          " << snapshot_count << "\n"
+              << "  System health pulses received:         " << health_count << "\n"
+              << "  Balance updates received:              " << balance_count << "\n"
+              << "  Margin alerts received:                " << margin_count << "\n"
+              << "  Funding rate updates received:         " << funding_count << "\n"
+              << "  Settlement updates received:           " << settle_count << "\n"
               << "  Non-fatal errors received:             " << error_count << "\n"
               << sep << "\n";
 

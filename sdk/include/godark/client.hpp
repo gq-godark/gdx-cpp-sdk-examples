@@ -116,9 +116,33 @@ public:
     std::optional<OrderUpdate> try_recv_order();
     /// Non-blocking pull from the bounded position update queue.
     std::optional<PositionUpdate> try_recv_position();
+    /// Non-blocking pull from the bounded `PositionsSnapshot` queue.
+    std::optional<PositionsSnapshot> try_recv_positions_snapshot();
+    /// Non-blocking pull from the bounded sequencer health-pulse queue.
+    std::optional<SystemHealthUpdate> try_recv_system_health();
+    /// Non-blocking pull from the bounded shielded-balance update queue.
+    std::optional<BalanceUpdate> try_recv_balance();
+    /// Non-blocking pull from the bounded margin-alert queue.
+    std::optional<MarginAlert> try_recv_margin_alert();
+    /// Non-blocking pull from the bounded funding-rate update queue.
+    std::optional<FundingRateUpdate> try_recv_funding_rate();
+    /// Non-blocking pull from the bounded settlement-update queue.
+    std::optional<SettlementUpdate> try_recv_settlement();
 
     std::function<void(const OrderUpdate&)> on_order_update;
     std::function<void(const PositionUpdate&)> on_position_update;
+    /// Full per-user positions snapshot (initial / periodic / event-driven).
+    std::function<void(const PositionsSnapshot&)> on_positions_snapshot;
+    /// Sequencer / MPC node health pulse routed via the trading WS.
+    std::function<void(const SystemHealthUpdate&)> on_system_health;
+    /// Updated shielded balance for the authenticated user.
+    std::function<void(const BalanceUpdate&)> on_balance_update;
+    /// Margin tier transitions / recoveries for `(owner, symbol_id)`.
+    std::function<void(const MarginAlert&)> on_margin_alert;
+    /// Per-symbol funding-rate ticks.
+    std::function<void(const FundingRateUpdate&)> on_funding_rate_update;
+    /// Settlement batch lifecycle updates.
+    std::function<void(const SettlementUpdate&)> on_settlement_update;
     /// Invoked after a successful automatic reconnect and optional channel resubscribe.
     std::function<void()> on_reconnect;
     /// Non-fatal errors (rekey failures, decrypt/parse failures on pushes).

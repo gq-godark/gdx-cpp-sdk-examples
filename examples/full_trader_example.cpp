@@ -59,6 +59,12 @@ int main() {
 
     int order_count = 0;
     int position_count = 0;
+    int snapshot_count = 0;
+    int health_count = 0;
+    int balance_count = 0;
+    int margin_count = 0;
+    int funding_count = 0;
+    int settle_count = 0;
     int error_count = 0;
 
     client.on_order_update = [&](const godark::OrderUpdate& u) {
@@ -75,6 +81,47 @@ int main() {
         std::cout << "POS    side=" << godark::to_string(u.side)
                   << "  size=" << u.size
                   << "  entry=" << u.entry_price << "\n";
+    };
+
+    client.on_positions_snapshot = [&](const godark::PositionsSnapshot& s) {
+        ++snapshot_count;
+        std::cout << "SNAP   source=" << static_cast<int>(s.source)
+                  << "  rows=" << s.rows.size()
+                  << "  ts=" << s.server_timestamp << "\n";
+    };
+
+    client.on_system_health = [&](const godark::SystemHealthUpdate& h) {
+        ++health_count;
+        std::cout << "HEALTH total=" << h.total_nodes
+                  << "  ready=" << h.ready
+                  << "  accepting=" << (h.accepting_orders ? "yes" : "no") << "\n";
+    };
+
+    client.on_balance_update = [&](const godark::BalanceUpdate& b) {
+        ++balance_count;
+        std::cout << "BAL    shielded_raw=" << b.shielded_balance_raw << "\n";
+    };
+
+    client.on_margin_alert = [&](const godark::MarginAlert& a) {
+        ++margin_count;
+        std::cout << "MARGIN symbol=" << a.symbol_id
+                  << "  tier=" << a.tier
+                  << "  ratio_bps=" << a.margin_ratio_bps
+                  << (a.recovered ? "  (recovered)" : "") << "\n";
+    };
+
+    client.on_funding_rate_update = [&](const godark::FundingRateUpdate& f) {
+        ++funding_count;
+        std::cout << "FUND   symbol=" << f.symbol_id
+                  << "  current=" << f.current_rate
+                  << "  predicted=" << f.predicted_rate << "\n";
+    };
+
+    client.on_settlement_update = [&](const godark::SettlementUpdate& s) {
+        ++settle_count;
+        std::cout << "SETTLE batch=" << s.batch_id
+                  << "  status=" << static_cast<int>(s.status)
+                  << "  users=" << s.affected_user_uuids.size() << "\n";
     };
 
     client.on_reconnect = []() {
@@ -102,6 +149,12 @@ int main() {
     std::cout << "Subscribed to order + position updates\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
+    auto fmt_err = [](const godark::OrderError& e) {
+        std::string out = e.what();
+        if (e.error_code) out += " [" + *e.error_code + "]";
+        return out;
+    };
+
     std::cout << "Placing limit BUY...\n";
     godark::OrderAck buy_ack;
     try {
@@ -110,6 +163,10 @@ int main() {
             0.1, 67500.0, godark::TimeInForce::GTC);
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
+    } catch (const godark::OrderError& e) {
+        std::cerr << "BUY rejected: " << fmt_err(e) << "\n";
+        client.disconnect();
+        return 1;
     } catch (const godark::Error& e) {
         std::cerr << "BUY failed: " << e.what() << "\n";
         client.disconnect();
@@ -122,6 +179,8 @@ int main() {
     try {
         auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, 68000.0);
         std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
+    } catch (const godark::OrderError& e) {
+        std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {
         std::cerr << "Modify rejected: " << e.what() << "\n";
     }
@@ -139,6 +198,8 @@ int main() {
 
         auto cancel_ack = client.cancel_order(sell_ack.order_id, SYMBOL);
         std::cout << "SELL cancelled: order_id=" << cancel_ack.order_id << "\n";
+    } catch (const godark::OrderError& e) {
+        std::cerr << "Sell/cancel flow: " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {
         std::cerr << "Sell/cancel flow: " << e.what() << "\n";
     }
@@ -165,6 +226,12 @@ int main() {
     std::cout << sep << "\n  Session complete\n"
               << "  Order updates received (via callback): " << order_count << "\n"
               << "  Position updates received:             " << position_count << "\n"
+              << "  Positions snapshots received:          " << snapshot_count << "\n"
+              << "  System health pulses received:         " << health_count << "\n"
+              << "  Balance updates received:              " << balance_count << "\n"
+              << "  Margin alerts received:                " << margin_count << "\n"
+              << "  Funding rate updates received:         " << funding_count << "\n"
+              << "  Settlement updates received:           " << settle_count << "\n"
               << "  Non-fatal errors received:             " << error_count << "\n"
               << sep << "\n";
 

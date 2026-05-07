@@ -39,16 +39,22 @@ int main() {
         std::cout << "Connected as user " << *client.user_uuid() << "\n";
 
         const std::string symbol = "BTC-USDC-PERP";
-        auto ack = client.place_order(
-            symbol,
-            godark::Side::SELL,
-            godark::OrderType::LIMIT,
-            0.01,
-            999999.0);
-        std::cout << "Place OK -- order_id=" << ack.order_id << "\n";
+        try {
+            auto ack = client.place_order(
+                symbol,
+                godark::Side::SELL,
+                godark::OrderType::LIMIT,
+                0.01,
+                999999.0);
+            std::cout << "Place OK -- order_id=" << ack.order_id << "\n";
 
-        auto cancel = client.cancel_order(ack.order_id, symbol);
-        std::cout << "Cancel OK -- order_id=" << cancel.order_id << "\n";
+            auto cancel = client.cancel_order(ack.order_id, symbol);
+            std::cout << "Cancel OK -- order_id=" << cancel.order_id << "\n";
+        } catch (const godark::OrderError& e) {
+            std::cerr << "Order rejected: " << e.what();
+            if (e.error_code) std::cerr << " [" << *e.error_code << "]";
+            std::cerr << "\n";
+        }
 
         client.disconnect();
         std::cout << "Disconnected\n";

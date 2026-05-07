@@ -80,6 +80,28 @@ client.on_reconnect = []() {};
 client.on_error = [](const godark::Error& e) {};
 ```
 
+In addition, the SDK surfaces every other push the sequencer can emit on the
+trading WebSocket. Each one has a matching `on_*` callback **and** a
+non-blocking `try_recv_*()` queue (return type `std::optional<T>`):
+
+```cpp
+client.on_positions_snapshot   = [](const godark::PositionsSnapshot& s)   {};
+client.on_system_health        = [](const godark::SystemHealthUpdate& h)  {};
+client.on_balance_update       = [](const godark::BalanceUpdate& b)       {};
+client.on_margin_alert         = [](const godark::MarginAlert& a)         {};
+client.on_funding_rate_update  = [](const godark::FundingRateUpdate& f)   {};
+client.on_settlement_update    = [](const godark::SettlementUpdate& s)    {};
+```
+
+| Push                  | Field highlights                                                                                | Typical use                                          |
+|-----------------------|-------------------------------------------------------------------------------------------------|------------------------------------------------------|
+| `PositionsSnapshot`   | `rows[]` (`PositionRow{symbol_id, side, size, entry_price, mark_price, unrealized_pnl, ...}`), `source` (Initial / Periodic / Event) | Hydrate the open-positions table on connect; refresh every ~5s. |
+| `SystemHealthUpdate`  | `total_nodes`, `ready`, `degraded`, `accepting_orders`                                          | Display node-cluster status; pause submissions if `accepting_orders == false`. |
+| `BalanceUpdate`       | `shielded_balance_raw` (raw lamports-style integer)                                             | Refresh the wallet/equity widget after each fill or settlement. |
+| `MarginAlert`         | `symbol_id`, `tier`, `margin_ratio_bps`, `liquidation_price_bps`, `recovered`                   | Show / clear the margin-tier banner per `(owner, symbol_id)`. |
+| `FundingRateUpdate`   | `symbol_id`, `current_rate`, `predicted_rate`, `next_funding_time`                              | Update funding ticker / book metadata.               |
+| `SettlementUpdate`    | `batch_id`, `status` (Submitted / Confirmed / Failed), `tx_signature`, `affected_user_uuids[]`  | Reconcile settled batches, surface Solana tx links.  |
+
 ### Concurrency rule
 
 Only one command (`place_order`, `cancel_order`, `modify_order`) should be in
@@ -136,7 +158,9 @@ All SDK exceptions inherit from `godark::Error`:
 
 - `AuthenticationError`
 - `SessionError`
-- `OrderError`
+- `OrderError` — also carries `std::optional<std::string> error_code` with the
+  symbolic reason (e.g. `"PRICE_DEVIATION_TOO_LARGE"`, `"MARGIN_INSUFFICIENT"`).
+  See `quickstart.cpp` for the catch-and-print pattern.
 - `ConnectionError`
 - `EncryptionError`
 - `TimeoutError`

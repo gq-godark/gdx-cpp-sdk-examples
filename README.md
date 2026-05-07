@@ -23,6 +23,18 @@ sudo apt-get install -y \
 
 ## Configure credentials
 
+## Testnet onboarding
+
+Before running the examples, complete this setup flow:
+
+1. Open the testnet frontend: `https://app.godark-dex.com`
+2. Create an account using email sign-up.
+3. Fund your testnet account using the faucet: `https://faucet.godark-dex.com`
+4. In the frontend, go to **Settings -> API Key Management** and click **Create API Key** (as shown in the screenshot).
+5. Use the generated key ID and secret for your local `.env`.
+
+After generating your API credentials:
+
 Copy `.env.example` to `.env` and fill in your API credentials:
 
 ```bash

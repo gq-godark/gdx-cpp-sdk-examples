@@ -13,7 +13,7 @@ mkdir -p "$DEST"
 cp "$REPO_ROOT/CMakeLists.txt"     "$DEST/"
 cp "$REPO_ROOT/CMakePresets.json"  "$DEST/"
 cp "$REPO_ROOT/vcpkg.json"        "$DEST/"
-cp "$REPO_ROOT/README.md"         "$DEST/"
+cp "$REPO_ROOT/README_PACKAGE.md" "$DEST/README.md"
 cp "$REPO_ROOT/SDK_REFERENCE.md"  "$DEST/"
 cp "$REPO_ROOT/.env.example"      "$DEST/"
 

@@ -1,4 +1,4 @@
-# GoDark C++ SDK Reference (MM Distribution)
+# GoDark C++ SDK Reference
 
 This reference describes the API and workflow used by the market-maker-facing
 distribution in this repository.
@@ -18,7 +18,6 @@ Order placement support in this MM distribution is limited to `MARKET` and
 godark::ClientConfig config;
 config.api_key_id = "gdk_...";
 config.api_secret = "...";
-config.base_url   = "wss://api.godark-dex.com"; // optional override
 
 godark::GodarkClient client(config);
 client.connect();
@@ -36,7 +35,6 @@ The MM examples expect:
 
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
-- `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.
 

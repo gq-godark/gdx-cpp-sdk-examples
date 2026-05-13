@@ -71,8 +71,7 @@ fi
 # Required source files. The client-facing README / SDK_REFERENCE shipped to
 # market makers live under bundle/ and are intentionally separate from the
 # repo-root copies (which document the internal refresh / packaging workflow
-# and must NOT end up in the released archive). This split mirrors the Python
-# distribution (gdx-python-sdk-examples/bundle/{README,SDK_REFERENCE}.md).
+# and must NOT end up in the released archive).
 for required in \
     bundle/README.md \
     bundle/SDK_REFERENCE.md \

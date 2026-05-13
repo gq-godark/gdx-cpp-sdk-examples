@@ -3,7 +3,7 @@
 This repository is a market-maker-facing distribution for GoDark's C++ SDK.
 It includes:
 
-- a vendored **prebuilt static library** (`sdk/lib/libgodark.a`) plus public headers and CMake package config under `sdk/include/godark/` and `sdk/lib/cmake/godark/` — **no private package registry required**, same idea as shipping the **`godark` wheel** in the Python MM bundle or the **`godark-*-all.jar`** in the Java MM bundle
+- a vendored **prebuilt static library** (`sdk/lib/libgodark.a`) plus public headers and CMake package config under `sdk/include/godark/` and `sdk/lib/cmake/godark/` — **no private package registry required**; the bundle ships everything a consumer needs to `find_package(godark)` and link
 - minimal darkpool trading examples (**market** and **limit** orders only in the samples)
 - a simple **`.env`** workflow (no shell `export` required)
 

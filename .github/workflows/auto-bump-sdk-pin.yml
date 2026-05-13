@@ -1,0 +1,188 @@
+name: Auto-bump SDK pin
+
+# Layer 2 listener. Triggered by gdx-cpp-sdk's notify-examples.yml dispatch
+# (event_type=gdx-sdk-changed) or manually via workflow_dispatch.
+# Clones gdx-cpp-sdk at the dispatched SHA (with the gdx-proto submodule),
+# runs scripts/refresh_sdk.sh to rebuild libgodark.a + headers + cmake config
+# from upstream, and opens or refreshes a rolling PR (auto/bump-sdk-pin)
+# against main.
+#
+# Unlike the python listener, this workflow needs:
+#   - apt build deps (cmake, ninja, boost, openssl, protobuf, nlohmann-json) —
+#     refresh_sdk.sh actually compiles the SDK, it is not an rsync.
+#   - gdx-proto as a recursive submodule on the upstream checkout — the
+#     upstream CMake reads .proto files from there.
+#   - ubuntu-24.04 (pinned to match release.yml's runner) — different toolchains
+#     produce non-identical libgodark.a even from the same source. release.yml's
+#     parity check (byte-for-byte cmp) would fail if this job ran on a
+#     different runner family.
+#
+# Idempotent: re-running against the same SHA produces no drift on sdk/ and
+# exits clean without opening a PR. Each new SDK SHA force-pushes the rolling
+# branch, so we get one PR per merge cycle instead of one PR per upstream
+# commit.
+
+on:
+  repository_dispatch:
+    types: [gdx-sdk-changed]
+  workflow_dispatch:
+    inputs:
+      sdk_sha:
+        description: gdx-cpp-sdk commit SHA to vendor (for manual testing)
+        required: true
+        type: string
+
+permissions:
+  # Default GITHUB_TOKEN is read-only. All writes go through the two scoped
+  # App tokens below.
+  contents: read
+
+concurrency:
+  # Serialize bumps so two near-simultaneous dispatches don't fight over the
+  # auto/bump-sdk-pin branch — the second run waits for the first to finish.
+  group: auto-bump-sdk-pin
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Refresh sdk/ + open PR if drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Mint App token (local-repo writes)
+        id: app-token-local
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-cpp-sdk-examples
+          # contents:write for actions/checkout, the rolling-branch push, and
+          # gh pr view/create; pull-requests:write for gh pr create.
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint App token (upstream + submodule read)
+        id: app-token-upstream
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-cpp-sdk,gdx-proto
+          # Only contents:read needed — we just clone and build from these.
+          permission-contents: read
+
+      - name: Checkout examples (this repo)
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token-local.outputs.token }}
+
+      - name: Resolve SDK SHA
+        id: sha
+        env:
+          DISPATCH_SHA: ${{ github.event.client_payload.sdk_sha }}
+          INPUT_SHA: ${{ inputs.sdk_sha }}
+        run: |
+          SHA="${DISPATCH_SHA:-$INPUT_SHA}"
+          if [ -z "$SHA" ]; then
+            echo "::error::No sdk_sha in dispatch payload and no workflow_dispatch input."
+            exit 1
+          fi
+          echo "full=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Vendoring gdx-cpp-sdk@${SHA}"
+
+      - name: Checkout upstream gdx-cpp-sdk at dispatched SHA (with gdx-proto submodule)
+        uses: actions/checkout@v5
+        with:
+          repository: gq-godark/gdx-cpp-sdk
+          ref: ${{ steps.sha.outputs.full }}
+          path: upstream
+          token: ${{ steps.app-token-upstream.outputs.token }}
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Install build deps
+        # Must match the apt set used by release.yml and the local dev
+        # toolchain that produced the previously committed libgodark.a, or
+        # the parity check in the next release.yml run will fail.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+              cmake ninja-build \
+              libboost-dev libboost-system-dev libssl-dev \
+              libprotobuf-dev protobuf-compiler nlohmann-json3-dev
+
+      - name: Refresh vendored sdk/
+        env:
+          UPSTREAM_SRC: ${{ github.workspace }}/upstream
+        run: bash scripts/refresh_sdk.sh "${UPSTREAM_SRC}"
+
+      - name: Detect drift on sdk/
+        id: drift
+        run: |
+          if git diff --quiet -- sdk/; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No changes after refresh — already pinned at this SHA. Exiting clean."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Drift detected on sdk/:"
+            git diff --stat -- sdk/
+          fi
+
+      - name: Configure bot git identity
+        if: steps.drift.outputs.drift == 'true'
+        run: |
+          git config user.name "gdx-app[bot]"
+          git config user.email "gdx-app[bot]@users.noreply.github.com"
+
+      - name: Open or refresh rolling PR
+        if: steps.drift.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token-local.outputs.token }}
+          BRANCH: auto/bump-sdk-pin
+          SDK_SHORT: ${{ steps.sha.outputs.short }}
+          SDK_FULL: ${{ steps.sha.outputs.full }}
+          SDK_BRANCH: ${{ github.event.client_payload.sdk_branch }}
+        run: |
+          set -euo pipefail
+          git checkout -B "$BRANCH"
+          git add sdk/
+          git commit -m "chore(sdk): vendor godark cpp library from gdx-cpp-sdk@${SDK_SHORT}
+
+          Auto-generated by .github/workflows/auto-bump-sdk-pin.yml in response
+          to a gdx-sdk-changed dispatch. Rebuilds sdk/lib/libgodark.a and
+          re-installs sdk/include/godark/*.hpp + sdk/lib/cmake/godark/*.cmake
+          from gdx-cpp-sdk@${SDK_FULL}, with the new pin recorded in
+          sdk/UPSTREAM_REF.
+
+          Merging this PR to main fires the existing release.yml, which
+          rebuilds the bundle from the same pin, runs the parity + recipient
+          smoke checks, and tags a new GitHub Release with the .zip attached."
+
+          git push --force origin "$BRANCH"
+
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "Existing PR force-pushed; no new PR opened."
+            gh pr view "$BRANCH" --json url --jq .url
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "auto: bump vendored SDK to ${SDK_SHORT}" \
+              --body "Triggered by \`gdx-cpp-sdk@${SDK_FULL}\` on branch \`${SDK_BRANCH:-main}\`.
+
+          Rebuilds \`sdk/lib/libgodark.a\` and refreshes \`sdk/include/godark/*.hpp\` + \`sdk/lib/cmake/godark/*.cmake\` to vendor the latest SDK. The new pin is committed in \`sdk/UPSTREAM_REF\`.
+
+          - **Source repo:** \`gq-godark/gdx-cpp-sdk\`
+          - **Source SHA:** \`${SDK_FULL}\`
+          - **Workflow:** [.github/workflows/auto-bump-sdk-pin.yml](https://github.com/gq-godark/cpp-sdk-examples/blob/main/.github/workflows/auto-bump-sdk-pin.yml)
+
+          ### Review checklist
+          - [ ] \`sdk/UPSTREAM_REF\` matches the source SHA above.
+          - [ ] \`sdk/lib/libgodark.a\` size delta vs. the previous pin is reasonable — large swings warrant a quick glance at the upstream commit.
+          - [ ] Confirm CI build (\`release.yml\`) is green on this PR before merging — that's where the byte-for-byte parity check runs again from a clean runner." \
+              --label automation \
+              --label sdk-bump
+          fi

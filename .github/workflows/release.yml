@@ -1,0 +1,227 @@
+name: CI / Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel in-flight runs of the same PR (so updates don't pile up runners), but
+# never cancel a push-to-main run — releases are precious.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --------------------------------------------------------------------------
+  # build: prebuilt-static-lib zip + recipient smoke build.
+  #
+  # The zip is built from a fresh checkout of gq-godark/gdx-cpp-sdk@<ref>
+  # where <ref> is read from sdk/UPSTREAM_REF in this repo. The vendored
+  # sdk/ tree (headers + libgodark.a + cmake config) is parity-checked
+  # against the freshly built upstream install inside scripts/package.sh
+  # (text diff on headers/cmake, byte cmp on libgodark.a). Local edits to
+  # sdk/ cannot reach the released artifact.
+  #
+  # Runner: ubuntu-24.04 (pinned). The vendored sdk/lib/libgodark.a is built
+  # by scripts/refresh_sdk.sh on an Ubuntu 24.04 dev machine using glibc 2.39,
+  # g++ 13.3, libprotobuf 3.21.12 (apt). The CI runner must match that
+  # toolchain so byte-for-byte parity passes; if you bump this OS pin, also
+  # bump the documented dev environment and refresh sdk/ on the new image.
+  #
+  # Required secrets:
+  #   GDX_APP_ID            — GitHub App id (the GDX_APP)
+  #   GDX_APP_PRIVATE_KEY   — GitHub App private key (PEM)
+  #
+  # The app must be installed on gq-godark with read access to gdx-cpp-sdk
+  # AND gdx-proto (gdx-cpp-sdk uses gdx-proto via submodule).
+  # --------------------------------------------------------------------------
+  build:
+    name: Build prebuilt zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      bundle_name: ${{ steps.ver.outputs.bundle_name }}
+      pinned_ref: ${{ steps.pin.outputs.ref }}
+    steps:
+      - name: Checkout examples repo
+        uses: actions/checkout@v4
+
+      - name: Verify GitHub App secrets are configured
+        env:
+          APP_ID: ${{ secrets.GDX_APP_ID }}
+          APP_KEY: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -n "$APP_ID" ]  || missing+=(GDX_APP_ID)
+          [ -n "$APP_KEY" ] || missing+=(GDX_APP_PRIVATE_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secret(s): ${missing[*]}"
+            echo "::error::Install the GDX_APP GitHub App credentials under repo Settings -> Secrets and variables -> Actions, and ensure the app is installed on gq-godark with contents:read on gdx-cpp-sdk + gdx-proto."
+            exit 1
+          fi
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+              cmake ninja-build \
+              libboost-dev libboost-system-dev libssl-dev \
+              libprotobuf-dev protobuf-compiler \
+              nlohmann-json3-dev \
+              zip unzip
+
+      - name: Capture toolchain (for debugging parity failures)
+        run: |
+          echo "## Toolchain on this runner"  >> "$GITHUB_STEP_SUMMARY"
+          echo '```'                          >> "$GITHUB_STEP_SUMMARY"
+          (. /etc/os-release && echo "$PRETTY_NAME") >> "$GITHUB_STEP_SUMMARY"
+          g++ --version | head -1             >> "$GITHUB_STEP_SUMMARY"
+          ldd --version | head -1             >> "$GITHUB_STEP_SUMMARY"
+          dpkg -l libprotobuf-dev protobuf-compiler libboost-system-dev libssl-dev nlohmann-json3-dev \
+            | awk '/^ii/{print $2, $3}'       >> "$GITHUB_STEP_SUMMARY"
+          echo '```'                          >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mint GDX_APP token (scoped to upstream + submodule)
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GDX_APP_ID }}
+          private-key: ${{ secrets.GDX_APP_PRIVATE_KEY }}
+          owner: gq-godark
+          repositories: gdx-cpp-sdk,gdx-proto
+
+      - name: Read pinned upstream ref
+        id: pin
+        run: |
+          if [ ! -f sdk/UPSTREAM_REF ]; then
+            echo "::error::sdk/UPSTREAM_REF missing — run scripts/refresh_sdk.sh and commit it."
+            exit 1
+          fi
+          ref="$(tr -d '[:space:]' < sdk/UPSTREAM_REF)"
+          if [ -z "$ref" ]; then
+            echo "::error::sdk/UPSTREAM_REF is empty"
+            exit 1
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "Pinned upstream ref: ${ref}"
+
+      - name: Checkout pinned upstream gdx-cpp-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: gq-godark/gdx-cpp-sdk
+          ref: ${{ steps.pin.outputs.ref }}
+          path: upstream
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Compute version + bundle name
+        id: ver
+        run: |
+          base="$(grep -E '^project\(godark-cpp VERSION' upstream/CMakeLists.txt \
+                  | sed -E 's/.*VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          if [ -z "$base" ]; then
+            echo "::error::Could not parse 'project(godark-cpp VERSION X.Y.Z ...)' from upstream/CMakeLists.txt"
+            exit 1
+          fi
+          version="v${base}-build.${{ github.run_number }}"
+          bundle_name="gdx-cpp-sdk-${version}"
+          echo "version=${version}"           >> "$GITHUB_OUTPUT"
+          echo "bundle_name=${bundle_name}"   >> "$GITHUB_OUTPUT"
+          echo "Building ${bundle_name}.zip (godark-cpp ${base} from upstream pin ${{ steps.pin.outputs.ref }})"
+
+      - name: Build bundle via scripts/package.sh
+        env:
+          UPSTREAM_SRC: ${{ github.workspace }}/upstream
+        run: bash scripts/package.sh ${{ steps.ver.outputs.bundle_name }}
+
+      - name: Recipient build smoke (clean dir)
+        run: |
+          mkdir -p /tmp/recip
+          unzip -q ${{ steps.ver.outputs.bundle_name }}.zip -d /tmp/recip
+          cd /tmp/recip/${{ steps.ver.outputs.bundle_name }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+
+          # Both binaries must exist and be executable. quickstart exits
+          # non-zero without env vars (prints "Set GODARK_API_KEY_ID and
+          # GODARK_API_SECRET"); we treat that as success because it proves
+          # the binary linked the shipped libgodark.a and reached main().
+          [ -x build/examples/quickstart ]            || { echo "::error::quickstart binary missing"; exit 1; }
+          [ -x build/examples/full_trader_example ]   || { echo "::error::full_trader_example binary missing"; exit 1; }
+          out="$(./build/examples/quickstart 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "GODARK_API_KEY_ID"   || { echo "::error::quickstart did not produce expected env-missing message"; exit 1; }
+
+      - name: Upload bundle as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.ver.outputs.bundle_name }}
+          path: ${{ steps.ver.outputs.bundle_name }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  # release: tag + GitHub release attached to the prebuilt zip.
+  # Only on push to main, after build passes.
+  # --------------------------------------------------------------------------
+  release:
+    name: Create GitHub release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download prebuilt zip from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.bundle_name }}
+          path: ./release-asset
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ./release-asset/${{ needs.build.outputs.bundle_name }}.zip
+          body: |
+            **Automated release** built from commit `${{ github.sha }}`.
+
+            `libgodark.a` and headers built from upstream `gq-godark/gdx-cpp-sdk`
+            at pinned ref `${{ needs.build.outputs.pinned_ref }}`. Built on
+            `ubuntu-24.04` (glibc 2.39, g++ 13.3, libprotobuf 3.21.12 via apt).
+
+            ## Install
+
+            1. Download `${{ needs.build.outputs.bundle_name }}.zip` from the
+               assets below.
+            2. Unzip and follow `README.md` inside the bundle:
+
+               ```bash
+               unzip ${{ needs.build.outputs.bundle_name }}.zip
+               cd ${{ needs.build.outputs.bundle_name }}
+               sudo apt-get install -y \
+                   cmake ninja-build \
+                   libboost-dev libboost-system-dev libssl-dev \
+                   libprotobuf-dev protobuf-compiler \
+                   nlohmann-json3-dev
+               cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+               cmake --build build -j
+               cp .env.example .env   # then fill in your testnet creds
+               ./build/examples/quickstart
+               ```
+
+            See `README.md` and `SDK_REFERENCE.md` inside the bundle for the
+            full integration docs.

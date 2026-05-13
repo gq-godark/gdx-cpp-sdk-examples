@@ -196,28 +196,76 @@ done
 echo "  upstream install OK ($UPSTREAM_PREFIX)"
 
 # ---- parity check: vendored sdk/ must match upstream install --------------
+# Two-tier contract:
+#   Tier 1 (byte parity): the artifacts that drive ABI and source identity —
+#     libgodark.a (the actual archive linker sees) and include/ (the headers
+#     the compiler sees). Any drift here means the vendored copy could ship
+#     a different ABI/API than the recorded upstream pin.
+#   Tier 2 (structural parity): cmake package config under lib/cmake/godark/.
+#     This is install(EXPORT)-generated CMake metadata, NOT source. Its exact
+#     bytes vary across cmake patch/minor versions (the generated import
+#     boilerplate differs between e.g. cmake 3.28.3 and 3.28.x) without
+#     affecting the import contract. The released bundle copies lib/cmake/
+#     from $UPSTREAM_PREFIX (see staging step below), not from sdk/, so
+#     vendored drift in these files cannot reach the shipped artifact. We
+#     still sanity-check the files exist and import the expected target.
 parity_ok=true
 
-# Headers: text diff (recursive).
+# Tier 1a — headers: byte parity (recursive text diff is sufficient since
+# every header is text and diff reports any size or content delta).
 if ! diff -r --brief "$UPSTREAM_PREFIX/include/godark" "$REPO_ROOT/sdk/include/godark" >/dev/null; then
   parity_ok=false
   echo "error: vendored sdk/include/godark/ has drifted from upstream $PINNED_REF:" >&2
   diff -r --brief "$UPSTREAM_PREFIX/include/godark" "$REPO_ROOT/sdk/include/godark" >&2 || true
 fi
 
-# CMake package config: text diff (recursive).
-if ! diff -r --brief "$UPSTREAM_PREFIX/lib/cmake/godark" "$REPO_ROOT/sdk/lib/cmake/godark" >/dev/null; then
-  parity_ok=false
-  echo "error: vendored sdk/lib/cmake/godark/ has drifted from upstream $PINNED_REF:" >&2
-  diff -r --brief "$UPSTREAM_PREFIX/lib/cmake/godark" "$REPO_ROOT/sdk/lib/cmake/godark" >&2 || true
-fi
-
-# Static library: byte-for-byte cmp.
+# Tier 1b — static library: byte-for-byte cmp.
 if ! cmp -s "$UPSTREAM_PREFIX/lib/libgodark.a" "$REPO_ROOT/sdk/lib/libgodark.a"; then
   parity_ok=false
   echo "error: vendored sdk/lib/libgodark.a differs byte-for-byte from upstream $PINNED_REF:" >&2
   printf '  vendored size: %s bytes\n' "$(stat -c %s "$REPO_ROOT/sdk/lib/libgodark.a")" >&2
   printf '  upstream size: %s bytes\n' "$(stat -c %s "$UPSTREAM_PREFIX/lib/libgodark.a")" >&2
+fi
+
+# Tier 2 — cmake package config: structural sanity check.
+# Required files must all be present in both sides (catches "someone deleted
+# a config file" or "upstream renamed the export set").
+for cmake_file in \
+    lib/cmake/godark/godark-config.cmake \
+    lib/cmake/godark/godark-config-version.cmake \
+    lib/cmake/godark/godark-targets.cmake \
+    lib/cmake/godark/godark-targets-release.cmake; do
+  if [[ ! -f "$UPSTREAM_PREFIX/$cmake_file" ]]; then
+    parity_ok=false
+    echo "error: upstream install missing $cmake_file" >&2
+  fi
+  if [[ ! -f "$REPO_ROOT/sdk/$cmake_file" ]]; then
+    parity_ok=false
+    echo "error: vendored sdk/ missing $cmake_file — run scripts/refresh_sdk.sh" >&2
+  fi
+done
+
+# Imported target identity: the vendored godark-targets.cmake MUST define
+# the godark::godark imported target and reference libgodark.a as the
+# imported location. If either invariant breaks, downstream cmake projects
+# linking against the vendored copy would silently link the wrong artifact
+# (or fail to find the target).
+vendored_targets="$REPO_ROOT/sdk/lib/cmake/godark/godark-targets.cmake"
+vendored_targets_release="$REPO_ROOT/sdk/lib/cmake/godark/godark-targets-release.cmake"
+if [[ -f "$vendored_targets" && ! $(grep -E 'add_library\(godark::godark' "$vendored_targets") ]]; then
+  parity_ok=false
+  echo "error: vendored godark-targets.cmake does not declare imported target godark::godark" >&2
+fi
+if [[ -f "$vendored_targets_release" && ! $(grep -F 'libgodark.a' "$vendored_targets_release") ]]; then
+  parity_ok=false
+  echo "error: vendored godark-targets-release.cmake does not reference libgodark.a" >&2
+fi
+
+# Diagnostic — surface (but do not fail on) byte differences in lib/cmake/.
+# Useful for spotting unexpected upstream changes early.
+if ! diff -r --brief "$UPSTREAM_PREFIX/lib/cmake/godark" "$REPO_ROOT/sdk/lib/cmake/godark" >/dev/null 2>&1; then
+  echo "note: vendored sdk/lib/cmake/godark/ differs from upstream (cmake-version flakiness, non-fatal):"
+  diff -r --brief "$UPSTREAM_PREFIX/lib/cmake/godark" "$REPO_ROOT/sdk/lib/cmake/godark" 2>&1 | sed 's/^/  /' || true
 fi
 
 if [[ "$parity_ok" != true ]]; then

@@ -25,8 +25,15 @@ public:
     MarketDataClient(const std::string& base_url, TransportConfig transport);
     ~MarketDataClient();
 
+    // Non-copyable and non-movable. The PIMPL owns a live WebSocket
+    // transport and a running heartbeat thread; the thread's worker
+    // captures pointers into `Impl`, so moving `Impl` while the thread is
+    // alive would dangle those captures. Aligned with `GodarkClient` for
+    // a single ownership story across the public SDK surface.
     MarketDataClient(const MarketDataClient&) = delete;
     MarketDataClient& operator=(const MarketDataClient&) = delete;
+    MarketDataClient(MarketDataClient&&) = delete;
+    MarketDataClient& operator=(MarketDataClient&&) = delete;
 
     void connect();
     void disconnect();

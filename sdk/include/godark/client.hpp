@@ -85,8 +85,19 @@ public:
     explicit GodarkClient(const ClientConfig& config);
     ~GodarkClient();
 
+    // Non-copyable and non-movable. The PIMPL (`Impl`) holds a back-pointer
+    // to its owning `GodarkClient` for dispatching the public `on_*`
+    // callback fields below from transport-owned threads (reconnect loop,
+    // encrypted-push handler, cleartext order/position handlers). Defaulting
+    // the move operations would leave that back-pointer aimed at the
+    // moved-from instance, silently breaking callback delivery and creating
+    // use-after-move hazards while worker threads are live. If a movable
+    // variant is ever needed, the public callbacks must first migrate into
+    // `Impl` (with thread-safe setters) so no back-pointer remains.
     GodarkClient(const GodarkClient&) = delete;
     GodarkClient& operator=(const GodarkClient&) = delete;
+    GodarkClient(GodarkClient&&) = delete;
+    GodarkClient& operator=(GodarkClient&&) = delete;
 
     void connect();
     void disconnect();

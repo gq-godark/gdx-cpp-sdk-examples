@@ -130,7 +130,7 @@ jobs:
             exit 1
           fi
           version="v${base}-build.${{ github.run_number }}"
-          bundle_name="gdx-cpp-sdk-${version}"
+          bundle_name="gdx-cpp-sdk-${version}-linux-x86_64"
           echo "version=${version}"           >> "$GITHUB_OUTPUT"
           echo "bundle_name=${bundle_name}"   >> "$GITHUB_OUTPUT"
           echo "Building ${bundle_name}.zip (godark-cpp ${base} from upstream pin ${{ steps.pin.outputs.ref }})"

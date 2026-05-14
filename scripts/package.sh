@@ -304,6 +304,12 @@ cp "$REPO_ROOT/examples/dotenv.hpp"               "$DEST/examples/"
 cp -r "$UPSTREAM_PREFIX/include" "$DEST/sdk/"
 cp -r "$UPSTREAM_PREFIX/lib"     "$DEST/sdk/"
 
+# UPSTREAM_REF marker — recipients can grep this to know exactly which
+# upstream commit the shipped libgodark.a was built from (helps with
+# triage / bug reports). The bytes are the same as $REPO_ROOT/sdk/UPSTREAM_REF
+# because we already verified upstream HEAD matches the pin above.
+printf '%s\n' "$PINNED_REF" > "$DEST/sdk/UPSTREAM_REF"
+
 # ---- zip ------------------------------------------------------------------
 ARCHIVE="$REPO_ROOT/${DIST_NAME}.zip"
 rm -f "$ARCHIVE"
@@ -321,12 +327,6 @@ if echo "$LISTING" | grep -E "${DIST_NAME}/(scripts|bundle|build|\.git|CMakeUser
   exit 1
 fi
 
-# Must NOT ship the UPSTREAM_REF marker — it's an internal vendoring artifact.
-if echo "$LISTING" | grep -E "${DIST_NAME}/sdk/UPSTREAM_REF" >/dev/null; then
-  echo "error: bundle contains sdk/UPSTREAM_REF — vendoring marker leaked into archive" >&2
-  exit 1
-fi
-
 # Every required path must be present.
 for required in \
     "${DIST_NAME}/CMakeLists\\.txt" \
@@ -339,6 +339,7 @@ for required in \
     "${DIST_NAME}/examples/quickstart\\.cpp" \
     "${DIST_NAME}/examples/full_trader_example\\.cpp" \
     "${DIST_NAME}/examples/dotenv\\.hpp" \
+    "${DIST_NAME}/sdk/UPSTREAM_REF" \
     "${DIST_NAME}/sdk/include/godark/godark\\.hpp" \
     "${DIST_NAME}/sdk/include/godark/client\\.hpp" \
     "${DIST_NAME}/sdk/lib/libgodark\\.a" \

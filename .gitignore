@@ -3,10 +3,7 @@ CMakeUserPresets.json
 compile_commands.json
 .conan/
 *.user
-# Legacy tar.gz packager output (pre-release.yml). Modern script produces .zip.
 *.tar.gz
-# Local package output from scripts/package.sh and CI bundle zips.
 *.zip
-# CI checks out the pinned upstream gdx-cpp-sdk under ./upstream/ — never commit.
 /upstream/
 .env

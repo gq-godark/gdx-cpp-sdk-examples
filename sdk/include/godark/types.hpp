@@ -155,4 +155,20 @@ struct SettlementUpdate {
     std::vector<std::string> affected_user_uuids;
 };
 
+struct MeProfile {
+    std::string id;
+    std::string dynamic_user_id;
+    std::string email;
+    std::string wallet_address;
+    std::string referral_code;
+    std::string tier;
+};
+
+struct Balance {
+    uint64_t wallet_usdt_raw = 0;
+    uint64_t pending_deposits_raw = 0;
+    uint64_t shielded_balance_raw = 0;
+    double wallet_usdt_ui = 0.0;
+};
+
 } // namespace godark

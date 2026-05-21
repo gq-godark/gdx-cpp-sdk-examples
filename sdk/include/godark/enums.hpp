@@ -221,30 +221,33 @@ inline int to_proto(OrderUpdateType v) { return static_cast<int>(v); }
 // ----- PositionUpdateType -----
 
 enum class PositionUpdateType : int {
-    SNAPSHOT = 1,
-    OPEN     = 2,
-    INCREASE = 3,
-    DECREASE = 4,
-    CLOSE    = 5,
+    SNAPSHOT        = 1,
+    OPEN            = 2,
+    INCREASE        = 3,
+    DECREASE        = 4,
+    CLOSE           = 5,
+    FUNDING_APPLIED = 6,
 };
 
 inline std::string to_string(PositionUpdateType v) {
     switch (v) {
-        case PositionUpdateType::SNAPSHOT: return "SNAPSHOT";
-        case PositionUpdateType::OPEN:     return "OPEN";
-        case PositionUpdateType::INCREASE: return "INCREASE";
-        case PositionUpdateType::DECREASE: return "DECREASE";
-        case PositionUpdateType::CLOSE:    return "CLOSE";
+        case PositionUpdateType::SNAPSHOT:        return "SNAPSHOT";
+        case PositionUpdateType::OPEN:            return "OPEN";
+        case PositionUpdateType::INCREASE:        return "INCREASE";
+        case PositionUpdateType::DECREASE:        return "DECREASE";
+        case PositionUpdateType::CLOSE:           return "CLOSE";
+        case PositionUpdateType::FUNDING_APPLIED: return "FUNDING_APPLIED";
     }
     throw std::invalid_argument("Unknown PositionUpdateType value");
 }
 
 inline PositionUpdateType position_update_type_from_string(std::string_view s) {
-    if (s == "SNAPSHOT") return PositionUpdateType::SNAPSHOT;
-    if (s == "OPEN")     return PositionUpdateType::OPEN;
-    if (s == "INCREASE") return PositionUpdateType::INCREASE;
-    if (s == "DECREASE") return PositionUpdateType::DECREASE;
-    if (s == "CLOSE")    return PositionUpdateType::CLOSE;
+    if (s == "SNAPSHOT")        return PositionUpdateType::SNAPSHOT;
+    if (s == "OPEN")            return PositionUpdateType::OPEN;
+    if (s == "INCREASE")        return PositionUpdateType::INCREASE;
+    if (s == "DECREASE")        return PositionUpdateType::DECREASE;
+    if (s == "CLOSE")           return PositionUpdateType::CLOSE;
+    if (s == "FUNDING_APPLIED") return PositionUpdateType::FUNDING_APPLIED;
     throw std::invalid_argument("Unknown PositionUpdateType string: " + std::string(s));
 }
 
@@ -255,6 +258,7 @@ inline PositionUpdateType position_update_type_from_proto(int v) {
         case 3: return PositionUpdateType::INCREASE;
         case 4: return PositionUpdateType::DECREASE;
         case 5: return PositionUpdateType::CLOSE;
+        case 6: return PositionUpdateType::FUNDING_APPLIED;
         default: throw std::invalid_argument("Unknown PositionUpdateType proto value: " + std::to_string(v));
     }
 }

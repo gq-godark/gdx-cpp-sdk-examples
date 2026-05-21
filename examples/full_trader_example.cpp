@@ -16,6 +16,7 @@
 #include <thread>
 
 #include <godark/godark.hpp>
+#include <godark/rest_client.hpp>
 
 #include "dotenv.hpp"
 
@@ -55,6 +56,19 @@ int main() {
     }
 
     std::cout << "Endpoint: " << cfg.base_url << "\n";
+
+    try {
+        godark::GodarkRestClient::Config rcfg;
+        rcfg.api_key_id = cfg.api_key_id;
+        rcfg.api_secret = cfg.api_secret;
+        godark::GodarkRestClient rest{rcfg};
+        rest.connect();
+        std::cout << "Balance: shielded_raw=" << rest.get_my_balance().shielded_balance_raw << "\n";
+        rest.disconnect();
+    } catch (const std::exception& e) {
+        std::cerr << "Balance fetch failed: " << e.what() << "\n";
+    }
+
     godark::GodarkClient client(cfg);
 
     int order_count = 0;

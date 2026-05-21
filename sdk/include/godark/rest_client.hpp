@@ -68,6 +68,15 @@ public:
     /// Poll `get_order` until status ∈ {FILLED,CANCELLED,REJECTED}.
     nlohmann::json await_terminal_status(const std::string& order_id, std::chrono::milliseconds timeout);
 
+    /// Fetch the authenticated user's profile from `GET /api/v1/auth/me`.
+    MeProfile get_me();
+
+    /// Fetch on-chain balance snapshot for `owner` (Solana base58 wallet pubkey).
+    Balance get_balance(const std::string& owner);
+
+    /// Convenience: resolves wallet_address via `get_me()` (cached), then calls `get_balance`.
+    Balance get_my_balance();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

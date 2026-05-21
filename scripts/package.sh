@@ -53,7 +53,7 @@ UPSTREAM_REPO="gq-godark/gdx-cpp-sdk"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DIST_NAME="${1:-gdx-cpp-sdk}"
+DIST_NAME="${1:-godark-cpp-sdk}"
 
 cd "$REPO_ROOT"
 
@@ -304,11 +304,10 @@ cp "$REPO_ROOT/examples/dotenv.hpp"               "$DEST/examples/"
 cp -r "$UPSTREAM_PREFIX/include" "$DEST/sdk/"
 cp -r "$UPSTREAM_PREFIX/lib"     "$DEST/sdk/"
 
-# UPSTREAM_REF marker — recipients can grep this to know exactly which
-# upstream commit the shipped libgodark.a was built from (helps with
-# triage / bug reports). The bytes are the same as $REPO_ROOT/sdk/UPSTREAM_REF
-# because we already verified upstream HEAD matches the pin above.
-printf '%s\n' "$PINNED_REF" > "$DEST/sdk/UPSTREAM_REF"
+# Strip internal headers — only the public API surface ships in the MM bundle.
+for internal in env_loader.hpp order_error_code.hpp; do
+  rm -f "$DEST/sdk/include/godark/$internal"
+done
 
 # ---- zip ------------------------------------------------------------------
 ARCHIVE="$REPO_ROOT/${DIST_NAME}.zip"
@@ -326,6 +325,10 @@ if echo "$LISTING" | grep -E "${DIST_NAME}/(scripts|bundle|build|\.git|CMakeUser
   echo "error: bundle contains internal files (scripts/, bundle/, build/, .git/, or CMakeUserPresets.json)" >&2
   exit 1
 fi
+if echo "$LISTING" | grep -E "${DIST_NAME}/(sdk/UPSTREAM_REF|/\\.env$)" >/dev/null; then
+  echo "error: bundle contains maintainer-only metadata or .env" >&2
+  exit 1
+fi
 
 # Every required path must be present.
 for required in \
@@ -339,7 +342,6 @@ for required in \
     "${DIST_NAME}/examples/quickstart\\.cpp" \
     "${DIST_NAME}/examples/full_trader_example\\.cpp" \
     "${DIST_NAME}/examples/dotenv\\.hpp" \
-    "${DIST_NAME}/sdk/UPSTREAM_REF" \
     "${DIST_NAME}/sdk/include/godark/godark\\.hpp" \
     "${DIST_NAME}/sdk/include/godark/client\\.hpp" \
     "${DIST_NAME}/sdk/lib/libgodark\\.a" \
@@ -353,6 +355,17 @@ for required in \
   fi
 done
 
+# Must NOT leak internal repo names or maintainer markers into the archive.
+if unzip -p "$ARCHIVE" 2>/dev/null | strings | grep -qiE 'gdx-cpp-sdk|UPSTREAM_REF|refresh_sdk|package\.sh'; then
+  echo "error: bundle contains internal repo references" >&2
+  exit 1
+fi
+
+if echo "$LISTING" | grep -E 'env_loader\.hpp|order_error_code\.hpp' >/dev/null; then
+  echo "error: bundle contains internal SDK headers" >&2
+  exit 1
+fi
+
 echo
-echo "prebuilt-static-lib assertion: PASSED"
+echo "self-contained bundle assertion: PASSED"
 echo "built from upstream:           ${UPSTREAM_REPO}@${PINNED_REF} (${upstream_head_sha})"

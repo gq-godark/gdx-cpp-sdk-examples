@@ -183,14 +183,9 @@ All SDK exceptions inherit from `godark::Error`:
 ## CMake integration
 
 ```cmake
-list(PREPEND CMAKE_PREFIX_PATH "path/to/godark-cpp-sdk/sdk")
 find_package(godark REQUIRED)
 
 add_executable(my_bot my_bot.cpp)
 target_compile_features(my_bot PRIVATE cxx_std_20)
 target_link_libraries(my_bot PRIVATE godark::godark)
-```
-
-```cpp
-#include <godark/godark.hpp>
 ```

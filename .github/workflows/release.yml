@@ -130,7 +130,7 @@ jobs:
             exit 1
           fi
           version="v${base}-build.${{ github.run_number }}"
-          bundle_name="gdx-cpp-sdk-${version}-linux-x86_64"
+          bundle_name="godark-cpp-sdk-${version}"
           echo "version=${version}"           >> "$GITHUB_OUTPUT"
           echo "bundle_name=${bundle_name}"   >> "$GITHUB_OUTPUT"
           echo "Building ${bundle_name}.zip (godark-cpp ${base} from upstream pin ${{ steps.pin.outputs.ref }})"
@@ -199,9 +199,8 @@ jobs:
           body: |
             **Automated release** built from commit `${{ github.sha }}`.
 
-            `libgodark.a` and headers built from upstream `gq-godark/gdx-cpp-sdk`
-            at pinned ref `${{ needs.build.outputs.pinned_ref }}`. Built on
-            `ubuntu-24.04` (glibc 2.39, g++ 13.3, libprotobuf 3.21.12 via apt).
+            Prebuilt `libgodark.a` and public headers for the GoDark C++ SDK.
+            Built on `ubuntu-24.04` (glibc 2.39, g++ 13.3, libprotobuf 3.21.12 via apt).
 
             ## Install
 

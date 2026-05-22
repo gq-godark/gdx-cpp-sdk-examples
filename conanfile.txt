@@ -1,7 +1,0 @@
-# Ensure your default remote (e.g. Conan Cloud / Artifactory) provides this reference.
-[requires]
-godark/0.1.0@gq/stable
-
-[generators]
-CMakeDeps
-CMakeToolchain

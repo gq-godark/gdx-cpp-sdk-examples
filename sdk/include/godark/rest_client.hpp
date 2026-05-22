@@ -1,0 +1,85 @@
+#pragma once
+
+#include <godark/enums.hpp>
+#include <godark/errors.hpp>
+#include <godark/types.hpp>
+#include <godark/visibility.hpp>
+
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+#include <nlohmann/json.hpp>
+
+namespace godark {
+
+class RestTransport;
+
+/// REST-only trading client (AES-GCM encrypted orders via `/api/v1/*`).
+/// Mirrors the Phase-B Python/Rust/JS SDKs: encrypt/decrypt locally; edge forwards ciphertext only.
+class GODARK_API GodarkRestClient {
+public:
+    struct Config {
+        /// Either `legacy_api_key` OR (`api_key_id` + `api_secret`).
+        std::optional<std::string> legacy_api_key;
+        std::optional<std::string> api_key_id;
+        std::optional<std::string> api_secret;
+        std::optional<std::string> passphrase;
+        std::optional<std::string> rest_base_url;
+        /// Fallback when JWT omits `user_uuid` (local edge).
+        std::optional<std::string> user_uuid;
+        std::unordered_map<std::string, uint64_t> symbol_overrides;
+    };
+
+    explicit GodarkRestClient(Config cfg);
+    ~GodarkRestClient();
+
+    GodarkRestClient(const GodarkRestClient&) = delete;
+    GodarkRestClient& operator=(const GodarkRestClient&) = delete;
+    GodarkRestClient(GodarkRestClient&&) noexcept;
+    GodarkRestClient& operator=(GodarkRestClient&&) noexcept;
+
+    [[nodiscard]] bool is_session_established() const;
+    [[nodiscard]] std::optional<std::string> user_uuid() const;
+
+    void connect();
+    void disconnect();
+
+    OrderAck place_order(const std::string& symbol, Side side, OrderType order_type, double quantity,
+        std::optional<double> price, TimeInForce time_in_force, bool aon,
+        std::optional<double> min_fill_size, std::optional<uint64_t> expiry_time,
+        std::optional<std::string> client_order_id);
+
+    OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
+
+    OrderAck cancel_order_by_client_id(const std::string& client_order_id, const std::string& symbol);
+
+    OrderAck modify_order(const std::string& order_id, const std::string& symbol,
+        std::optional<double> new_price, std::optional<double> new_quantity);
+
+    /// Plaintext docs envelope `data` object from `GET /api/v1/orders/{id}`.
+    nlohmann::json get_order(const std::string& order_id);
+
+    /// Plaintext docs envelope `data` object from `GET /api/v1/orders?client_order_id=`.
+    nlohmann::json get_order_by_client_id(const std::string& client_order_id);
+
+    /// Poll `get_order` until status ∈ {FILLED,CANCELLED,REJECTED}.
+    nlohmann::json await_terminal_status(const std::string& order_id, std::chrono::milliseconds timeout);
+
+    /// Fetch the authenticated user's profile from `GET /api/v1/auth/me`.
+    MeProfile get_me();
+
+    /// Fetch on-chain balance snapshot for `owner` (Solana base58 wallet pubkey).
+    Balance get_balance(const std::string& owner);
+
+    /// Convenience: resolves wallet_address via `get_me()` (cached), then calls `get_balance`.
+    Balance get_my_balance();
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+} // namespace godark

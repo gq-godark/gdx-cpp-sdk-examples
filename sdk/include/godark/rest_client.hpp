@@ -22,7 +22,7 @@ class RestTransport;
 class GODARK_API GodarkRestClient {
 public:
     struct Config {
-        /// Either `legacy_api_key` OR (`api_key_id` + `api_secret`).
+        /// Either `legacy_api_key` OR (`api_key_id` + `api_secret` + `passphrase`).
         std::optional<std::string> legacy_api_key;
         std::optional<std::string> api_key_id;
         std::optional<std::string> api_secret;
@@ -58,6 +58,10 @@ public:
 
     OrderAck modify_order(const std::string& order_id, const std::string& symbol,
         std::optional<double> new_price, std::optional<double> new_quantity);
+
+    LeverageSettings get_leverage();
+
+    OrderAck update_leverage(const std::string& symbol, uint32_t leverage);
 
     /// Plaintext docs envelope `data` object from `GET /api/v1/orders/{id}`.
     nlohmann::json get_order(const std::string& order_id);

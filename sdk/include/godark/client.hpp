@@ -50,7 +50,10 @@ struct TransportConfig {
 struct ClientConfig {
     std::string api_key_id;
     std::string api_secret;
-    /// Standalone API key (sent as-is). Use either api_key OR api_key_id+api_secret.
+    /// User-chosen API key passphrase (required with key pair; also reads
+    /// GODARK_PASSPHRASE / GDX_PASSPHRASE from the environment).
+    std::string passphrase;
+    /// Standalone API key (sent as-is). Use either api_key OR api_key_id+api_secret+passphrase.
     std::string api_key;
     /// WebSocket base URL. The client appends `/ws/v1` automatically (the
     /// canonical endpoint per the public docs). Legacy `/ws` suffixes are

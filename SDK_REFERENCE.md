@@ -24,6 +24,7 @@ ABI ownership notes).
 godark::ClientConfig config;
 config.api_key_id = "gdk_...";
 config.api_secret = "...";
+config.passphrase = "...";
 config.base_url   = "wss://api.godark-dex.com"; // optional override
 
 godark::GodarkClient client(config);
@@ -42,6 +43,7 @@ The MM examples expect:
 
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
+- `GODARK_PASSPHRASE` (required for API key-pair auth)
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.

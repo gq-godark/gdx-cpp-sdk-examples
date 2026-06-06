@@ -3,7 +3,7 @@
 // Place a limit sell, then cancel it.
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
-// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_EDGE_URL=wss://api.godark-dex.com ./quickstart
+// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... GODARK_EDGE_URL=wss://api.godark-dex.com ./quickstart
 
 #include <cstdlib>
 #include <iostream>
@@ -17,16 +17,18 @@ int main() {
 
     const char* key_id_env = std::getenv("GODARK_API_KEY_ID");
     const char* secret_env = std::getenv("GODARK_API_SECRET");
+    const char* passphrase_env = std::getenv("GODARK_PASSPHRASE");
     const char* url_env    = std::getenv("GODARK_EDGE_URL");
 
-    if (!key_id_env || !secret_env) {
-        std::cerr << "Set GODARK_API_KEY_ID and GODARK_API_SECRET\n";
+    if (!key_id_env || !secret_env || !passphrase_env) {
+        std::cerr << "Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE\n";
         return 1;
     }
 
     godark::ClientConfig config;
     config.api_key_id = key_id_env;
     config.api_secret = secret_env;
+    config.passphrase = passphrase_env;
     if (url_env) config.base_url = url_env;
 
     const char* tls_skip = std::getenv("GODARK_TLS_SKIP_VERIFY");

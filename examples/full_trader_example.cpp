@@ -38,6 +38,7 @@ int main() {
     godark::ClientConfig cfg;
     cfg.api_key_id = env_or("GODARK_API_KEY_ID", "");
     cfg.api_secret = env_or("GODARK_API_SECRET", "");
+    cfg.passphrase = env_or("GODARK_PASSPHRASE", "");
     cfg.base_url = env_or("GODARK_EDGE_URL", "wss://api.godark-dex.com");
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
@@ -49,9 +50,9 @@ int main() {
     if (tls_skip && (std::string(tls_skip) == "1" || std::string(tls_skip) == "true"))
         cfg.transport.tls_skip_verify = true;
 
-    if (cfg.api_key_id.empty() || cfg.api_secret.empty()) {
-        std::cerr << "Missing credentials. Set GODARK_API_KEY_ID and GODARK_API_SECRET "
-                     "(or provide them in .env).\n";
+    if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {
+        std::cerr << "Missing credentials. Set GODARK_API_KEY_ID, GODARK_API_SECRET and "
+                     "GODARK_PASSPHRASE (or provide them in .env).\n";
         return 1;
     }
 
@@ -61,6 +62,7 @@ int main() {
         godark::GodarkRestClient::Config rcfg;
         rcfg.api_key_id = cfg.api_key_id;
         rcfg.api_secret = cfg.api_secret;
+        rcfg.passphrase = cfg.passphrase;
         godark::GodarkRestClient rest{rcfg};
         rest.connect();
         std::cout << "Balance: shielded_raw=" << rest.get_my_balance().shielded_balance_raw << "\n";

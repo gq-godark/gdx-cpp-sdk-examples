@@ -59,6 +59,7 @@ Required keys:
 
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
+- `GODARK_PASSPHRASE` — required for API key-pair auth.
 
 Optional:
 

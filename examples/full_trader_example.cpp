@@ -10,10 +10,13 @@
 ///   7. Clean disconnect
 
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <godark/godark.hpp>
 #include <godark/rest_client.hpp>
@@ -230,6 +233,61 @@ int main() {
                   << " status=" << godark::to_string(u->status) << "\n";
     }
     std::cout << "Drained " << drained << " queued order update(s)\n";
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // std::nullopt (or true) for post_only keeps post-only behaviour: a leg
+    // that would cross is rejected as "failed" so the batch fuses into a single
+    // MPC round. Pass std::optional<bool>{false} for the relaxed path, where a
+    // crossing leg takes liquidity up to its limit and rests the remainder (the
+    // number of taker fills is reported per leg as fill_count).
+    std::cout << "Mass-quoting a 3-level BUY ladder (post-only)...\n";
+    std::vector<uint64_t> resting_ids;
+    try {
+        std::vector<godark::MassQuoteLegInput> ladder = {
+            {"BUY", 66000.0, 0.02},
+            {"BUY", 65500.0, 0.02},
+            {"BUY", 65000.0, 0.02},
+        };
+        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
+        std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
+                  << "  sequence=" << mq.sequence
+                  << "  legs=" << mq.results.size() << "\n";
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
+                      << "  fills=" << r.fill_count
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-") << "\n";
+            if (r.status == "open" && r.new_order_id) {
+                try {
+                    resting_ids.push_back(std::stoull(*r.new_order_id));
+                } catch (...) {
+                    // non-numeric id; skip cleanup for this leg
+                }
+            }
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "Mass quote rejected: " << e.what() << "\n";
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    if (!resting_ids.empty()) {
+        std::cout << "Batch-cancelling " << resting_ids.size()
+                  << " ladder orders (cleanup)...\n";
+        try {
+            auto bc = client.batch_cancel(SYMBOL, resting_ids);
+            for (const auto& r : bc.results) {
+                std::cout << "  cancel id=" << r.order_id
+                          << ": cancelled=" << (r.cancelled ? "true" : "false")
+                          << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                          << "\n";
+            }
+        } catch (const godark::Error& e) {
+            std::cerr << "Batch cancel rejected: " << e.what() << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
     std::cout << "Cancelling original BUY (cleanup)...\n";
     try {

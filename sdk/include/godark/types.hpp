@@ -17,6 +17,72 @@ struct OrderAck {
     std::optional<std::string> error = std::nullopt;
 };
 
+/// One cancel-replace leg of a mass quote. `cancel_order_id` 0/nullopt = pure
+/// place; `time_in_force` defaults to "GTC"; `expiry_time` (ns) is required for GTD.
+struct MassQuoteLegInput {
+    std::string side;
+    double price = 0.0;
+    double quantity = 0.0;
+    std::optional<uint64_t> cancel_order_id = std::nullopt;
+    std::string time_in_force = "GTC";
+    std::optional<uint64_t> expiry_time = std::nullopt;
+};
+
+/// One amend leg of a batch modify. At least one of new_price / new_quantity
+/// must be set.
+struct BatchModifyLegInput {
+    uint64_t order_id = 0;
+    std::optional<double> new_price = std::nullopt;
+    std::optional<double> new_quantity = std::nullopt;
+};
+
+/// Outcome of one cancel-replace leg in a mass quote.
+struct MassQuoteLegResult {
+    uint32_t leg_index = 0;
+    std::string status;  // "open" | "filled" | "failed" | "unspecified" | "unknown"
+    std::optional<std::string> cancelled_order_id = std::nullopt;
+    std::optional<std::string> new_order_id = std::nullopt;
+    std::optional<uint32_t> error_code = std::nullopt;
+    /// Number of taker fills this leg produced in relaxed (post_only=false)
+    /// mode; 0 for a pure rest or a post-only leg.
+    uint32_t fill_count = 0;
+};
+
+/// Batch-level result of a mass quote: one entry per submitted leg.
+struct MassQuoteAck {
+    bool success = false;
+    std::string sequence;
+    std::vector<MassQuoteLegResult> results;
+};
+
+/// Outcome of cancelling one order id in a batch-cancel request.
+struct BatchCancelLegResult {
+    std::string order_id;
+    bool cancelled = false;
+    std::optional<uint32_t> error_code = std::nullopt;
+};
+
+/// Batch-level result of a batch cancel: one entry per submitted order id.
+struct BatchCancelAck {
+    bool success = false;
+    std::string sequence;
+    std::vector<BatchCancelLegResult> results;
+};
+
+/// Outcome of amending one resting order in a batch-modify request.
+struct BatchModifyLegResult {
+    std::string order_id;
+    bool modified = false;
+    std::optional<uint32_t> error_code = std::nullopt;
+};
+
+/// Batch-level result of a batch modify: one entry per submitted leg.
+struct BatchModifyAck {
+    bool success = false;
+    std::string sequence;
+    std::vector<BatchModifyLegResult> results;
+};
+
 struct OrderUpdate {
     std::string order_id;
     std::string user_uuid;

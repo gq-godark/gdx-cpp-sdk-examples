@@ -210,8 +210,8 @@ struct MarginAlert {
     uint64_t symbol_id = 0;
     uint32_t tier = 0;
     uint32_t margin_ratio_bps = 0;
-    uint64_t mark_price_bps = 0;
-    uint64_t liquidation_price_bps = 0;
+    std::string mark_price;
+    std::string liquidation_price;
     int64_t ts = 0;
     uint64_t state_version = 0;
     /// True when the position recovered to `Healthy` — UI clears the tier

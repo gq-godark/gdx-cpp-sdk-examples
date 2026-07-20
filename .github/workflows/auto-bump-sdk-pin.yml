@@ -163,9 +163,12 @@ jobs:
 
           git push --force origin "$BRANCH"
 
-          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            echo "Existing PR force-pushed; no new PR opened."
-            gh pr view "$BRANCH" --json url --jq .url
+          # Only treat an OPEN PR as "existing". `gh pr view <branch>` also
+          # matches a previously merged/closed rolling PR, which suppresses
+          # opening a fresh one for the next merge cycle.
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
+            echo "Existing open PR force-pushed; no new PR opened."
+            gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url'
           else
             gh pr create \
               --base main \

@@ -44,6 +44,7 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.
@@ -267,7 +268,7 @@ All SDK exceptions inherit from `godark::Error` (which itself inherits from
 | Type | When |
 |------|------|
 | `AuthenticationError` | API key rejection at session bring-up |
-| `SessionError` | ECDH session failure |
+| `SessionError` | Noise XK handshake or rekey failure |
 | `OrderError` | Order rejected; carries `std::optional<std::string> error_code` with the symbolic reason |
 | `ConnectionError` | Transport-level disconnect or failure |
 | `EncryptionError` | Cipher / nonce failure on encrypted payloads |

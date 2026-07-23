@@ -60,6 +60,7 @@ Required keys:
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
 - `GODARK_PASSPHRASE` — required for API key-pair auth.
+- `GDX_NOISE_STATIC_PUBLIC_KEY` — required for encrypted WebSocket trading (64-hex sequencer static key). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
 
 Optional:
 

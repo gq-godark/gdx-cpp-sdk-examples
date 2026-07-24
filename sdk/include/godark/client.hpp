@@ -32,7 +32,7 @@ struct TransportConfig {
     int connect_timeout_sec = 30;
     /// How long to wait for a command (place/cancel/modify) response in seconds.
     int command_timeout_sec = 30;
-    /// How long to wait for the ECDH `session.setup` reply from the edge,
+    /// How long to wait for each Noise XK handshake reply from the edge,
     /// in seconds. Matches Python (`client.py:475`), JS (`client.ts:489`),
     /// and Rust (`client.rs:27`) at 10 s. Older releases hardcoded 5 s,
     /// which flaked on contended localnet clusters where the sequencer was
@@ -65,6 +65,9 @@ struct ClientConfig {
     /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
     /// then to the auth response. Required for local edge instances that omit it.
     std::string user_uuid;
+    /// 64-hex-character pinned Noise XK sequencer static public key. If empty,
+    /// the client reads GDX_NOISE_STATIC_PUBLIC_KEY (then GDX_NOISE_STATIC_PUBKEY).
+    std::string noise_static_public_key_hex;
     /// When true (default), automatic reconnect with backoff after transport disconnect.
     bool auto_reconnect = true;
     /// Bounded buffer size for order/position update queues (drop-oldest when full).
@@ -117,11 +120,47 @@ public:
         std::optional<double> price = std::nullopt,
         TimeInForce tif = TimeInForce::GTC);
 
+    /// Place an order with explicit confirmation semantics. Ack returns after
+    /// the command ACK; Book waits for OPEN, REJECTED, FILLED,
+    /// PARTIALLY_FILLED, or CANCELLED. The existing overload defaults to Book.
+    OrderAck place_order(
+        const std::string& symbol,
+        Side side,
+        OrderType order_type,
+        double quantity,
+        std::optional<double> price,
+        TimeInForce tif,
+        PlaceOrderConfirmation confirmation);
+
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,
                           const std::string& symbol,
                           std::optional<double> new_price = std::nullopt,
                           std::optional<double> new_quantity = std::nullopt);
+
+    /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
+    /// legs), fused into one MPC round. `post_only` selects the batch matching
+    /// mode: std::nullopt keeps the node default (post-only), where a leg that
+    /// would cross is rejected as "failed"; `false` enables the relaxed path,
+    /// where a crossing leg takes liquidity up to its limit and rests the
+    /// remainder (per-leg taker fills are surfaced as `fill_count`).
+    MassQuoteAck mass_quote(const std::string& symbol,
+                            const std::vector<MassQuoteLegInput>& legs,
+                            uint32_t leverage = 1,
+                            std::optional<bool> post_only = std::nullopt);
+
+    /// Cancel multiple resting orders on one symbol in a single fanned-out
+    /// request (up to 20 ids; zero online MPC rounds). An id that is not resting
+    /// is reported cancelled=false (error_code 2003) without aborting the batch.
+    BatchCancelAck batch_cancel(const std::string& symbol,
+                                const std::vector<uint64_t>& order_ids);
+
+    /// Amend multiple resting orders on one symbol in a single fanned-out
+    /// post-only request (up to 20 legs). A leg whose amended order would cross
+    /// is rejected (modified=false, error_code 2018); a missing id is reported
+    /// modified=false (2003). Neither aborts the rest of the batch.
+    BatchModifyAck batch_modify(const std::string& symbol,
+                                const std::vector<BatchModifyLegInput>& legs);
 
     void subscribe(const std::vector<std::string>& channels = {"orders", "positions"});
     void unsubscribe(const std::vector<std::string>& channels = {"orders", "positions"});

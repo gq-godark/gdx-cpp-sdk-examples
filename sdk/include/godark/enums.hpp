@@ -120,6 +120,14 @@ inline TimeInForce time_in_force_from_proto(int v) {
 
 inline int to_proto(TimeInForce v) { return static_cast<int>(v); }
 
+/// Controls when a WebSocket place_order call returns.
+enum class PlaceOrderConfirmation {
+    /// Return as soon as the sequencer acknowledges the command.
+    Ack,
+    /// Wait for the first book outcome update (safe default).
+    Book,
+};
+
 // ----- OrderStatus -----
 
 enum class OrderStatus : int {

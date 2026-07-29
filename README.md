@@ -63,7 +63,7 @@ Required keys:
 
 Optional:
 
-- `GODARK_EDGE_URL` — local testing only; if unset, examples use `wss://api.godark-dex.com`. The SDK derives the REST host from this same URL.
+- `GODARK_EDGE_URL` — local testing only; if unset, examples use `wss://api.godark-dex.com`. Encrypted REST trading is unsupported; all order flow goes over the WebSocket client.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 
@@ -112,7 +112,7 @@ cmake --build build -j
 | Target | Source | Purpose |
 |--------|--------|---------|
 | `quickstart` | `examples/quickstart.cpp` | Minimal connect → place LIMIT sell far from touch → cancel |
-| `full_trader_example` | `examples/full_trader_example.cpp` | Reference bot flow with callbacks for all sequencer push variants, place / modify / cancel, session summary |
+| `full_trader_example` | `examples/full_trader_example.cpp` | Reference bot flow with callbacks for all sequencer push variants, place / modify / cancel / mass-quote / batch-cancel, session summary |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**. See `bundle/SDK_REFERENCE.md` (shipped at the archive root as

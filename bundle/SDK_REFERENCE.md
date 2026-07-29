@@ -4,8 +4,9 @@ This reference describes the API and workflow used by the market-maker-facing
 distribution in this repository.
 
 The MM examples use WebSocket encrypted trading via `godark::GodarkClient`.
-REST and standalone market-data examples are intentionally excluded from this
-distribution.
+Encrypted REST trading is not supported — all order flow (place / modify /
+cancel / mass_quote) runs over the Noise XK WebSocket client. Standalone
+market-data examples are intentionally excluded from this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -100,7 +101,7 @@ client.on_settlement_update    = [](const godark::SettlementUpdate& s)    {};
 | Push                  | Field highlights                                                                                | Typical use                                          |
 |-----------------------|-------------------------------------------------------------------------------------------------|------------------------------------------------------|
 | `PositionsSnapshot`   | `rows[]` (`PositionRow{symbol_id, side, size, entry_price, mark_price, unrealized_pnl, ...}`), `source` (`Initial` / `Periodic` / `Event`) | Hydrate the open-positions table on connect; refresh every ~5s. |
-| `SystemHealthUpdate`  | `total_nodes`, `ready`, `degraded`, `accepting_orders`                                          | Display node-cluster status; pause submissions if `accepting_orders == false`. |
+| `SystemHealthUpdate`  | `component_id`, `state`, `serving`, `cause`, `updated_at_nanos`                                 | Display per-component health; pause submissions if `serving == false`. |
 | `BalanceUpdate`       | `shielded_balance_raw` (raw lamports-style integer)                                             | Refresh the wallet/equity widget after each fill or settlement. |
 | `MarginAlert`         | `symbol_id`, `tier`, `margin_ratio_bps`, `liquidation_price_bps`, `recovered`                   | Show / clear the margin-tier banner per `(owner, symbol_id)`. |
 | `FundingRateUpdate`   | `symbol_id`, `current_rate`, `predicted_rate`, `next_funding_time`                              | Update funding ticker / book metadata.               |
@@ -112,10 +113,11 @@ matching `try_recv_*()` queue fire for the same item.
 
 ### Concurrency rule
 
-**Single-flight commands**: `place_order`, `cancel_order`, and `modify_order`
-each block until the exchange responds or `transport.command_timeout_sec`
-expires. The transport maintains a single pending-command slot, so only one
-command may be in-flight at a time. Call them sequentially from one thread.
+`GodarkClient` routes trading commands by correlation id, so multiple commands
+(`place_order`, `cancel_order`, `modify_order`, `mass_quote`, `batch_cancel`, …)
+can be in flight concurrently. Encrypted REST trading is not supported; all
+order flow goes over the WebSocket client. Each call still blocks until the
+exchange responds or `transport.command_timeout_sec` expires.
 
 ## Core Types
 
@@ -178,7 +180,7 @@ All SDK exceptions inherit from `godark::Error`:
 | File | Purpose |
 |------|---------|
 | `examples/quickstart.cpp` | Minimal connect, place, cancel |
-| `examples/full_trader_example.cpp` | Reference bot flow with callbacks and order lifecycle |
+| `examples/full_trader_example.cpp` | Reference bot flow: callbacks, place / modify / cancel, mass-quote / batch-cancel |
 
 ## CMake integration
 

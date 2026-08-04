@@ -123,6 +123,30 @@ public:
                           std::optional<double> new_price = std::nullopt,
                           std::optional<double> new_quantity = std::nullopt);
 
+    /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
+    /// legs), fused into one MPC round. `post_only` selects the batch matching
+    /// mode: std::nullopt keeps the node default (post-only), where a leg that
+    /// would cross is rejected as "failed"; `false` enables the relaxed path,
+    /// where a crossing leg takes liquidity up to its limit and rests the
+    /// remainder (per-leg taker fills are surfaced as `fill_count`).
+    MassQuoteAck mass_quote(const std::string& symbol,
+                            const std::vector<MassQuoteLegInput>& legs,
+                            uint32_t leverage = 1,
+                            std::optional<bool> post_only = std::nullopt);
+
+    /// Cancel multiple resting orders on one symbol in a single fanned-out
+    /// request (up to 20 ids; zero online MPC rounds). An id that is not resting
+    /// is reported cancelled=false (error_code 2003) without aborting the batch.
+    BatchCancelAck batch_cancel(const std::string& symbol,
+                                const std::vector<uint64_t>& order_ids);
+
+    /// Amend multiple resting orders on one symbol in a single fanned-out
+    /// post-only request (up to 20 legs). A leg whose amended order would cross
+    /// is rejected (modified=false, error_code 2018); a missing id is reported
+    /// modified=false (2003). Neither aborts the rest of the batch.
+    BatchModifyAck batch_modify(const std::string& symbol,
+                                const std::vector<BatchModifyLegInput>& legs);
+
     void subscribe(const std::vector<std::string>& channels = {"orders", "positions"});
     void unsubscribe(const std::vector<std::string>& channels = {"orders", "positions"});
 

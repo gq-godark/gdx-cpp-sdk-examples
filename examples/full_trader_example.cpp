@@ -10,10 +10,14 @@
 ///   7. Clean disconnect
 
 #include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <godark/godark.hpp>
 #include <godark/rest_client.hpp>
@@ -230,6 +234,97 @@ int main() {
                   << " status=" << godark::to_string(u->status) << "\n";
     }
     std::cout << "Drained " << drained << " queued order update(s)\n";
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // std::nullopt (or true) for post_only keeps post-only behaviour: a leg
+    // that would cross is rejected as "failed" so the batch fuses into a single
+    // MPC round. Pass std::optional<bool>{false} for the relaxed path, where a
+    // crossing leg takes liquidity up to its limit and rests the remainder (the
+    // number of taker fills is reported per leg as fill_count).
+    // GDX_BASE anchors the ladder/cross near the live mark (default 64000).
+    double base = std::stod(env_or("GDX_BASE", "64000"));
+    auto round1 = [](double x) { return std::round(x * 10.0) / 10.0; };
+    std::cout << "Mass-quoting a 3-level BUY ladder (post-only)...\n";
+    std::vector<uint64_t> resting_ids;
+    try {
+        std::vector<godark::MassQuoteLegInput> ladder = {
+            {"BUY", round1(base * (1 - 0.003)), 0.02},
+            {"BUY", round1(base * (1 - 0.006)), 0.02},
+            {"BUY", round1(base * (1 - 0.009)), 0.02},
+        };
+        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
+        std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
+                  << "  sequence=" << mq.sequence
+                  << "  legs=" << mq.results.size() << "\n";
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
+                      << "  fills=" << r.fill_count
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-") << "\n";
+            if (r.status == "open" && r.new_order_id) {
+                try {
+                    resting_ids.push_back(std::stoull(*r.new_order_id));
+                } catch (...) {
+                    // non-numeric id; skip cleanup for this leg
+                }
+            }
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "Mass quote rejected: " << e.what() << "\n";
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    if (!resting_ids.empty()) {
+        std::cout << "Batch-cancelling " << resting_ids.size()
+                  << " ladder orders (cleanup)...\n";
+        try {
+            auto bc = client.batch_cancel(SYMBOL, resting_ids);
+            for (const auto& r : bc.results) {
+                std::cout << "  cancel id=" << r.order_id
+                          << ": cancelled=" << (r.cancelled ? "true" : "false")
+                          << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                          << "\n";
+            }
+        } catch (const godark::Error& e) {
+            std::cerr << "Batch cancel rejected: " << e.what() << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    // Demonstrate the batch-level post_only flag on a crossing leg.
+    double cross_px = round1(base * 1.02);
+    // post_only=true: a crossing leg is rejected (would-cross, error_code 2018).
+    std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
+    try {
+        auto mq = client.mass_quote(
+            SYMBOL, {{"BUY", cross_px, 0.001}}, 1, std::optional<bool>{true});
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                      << "  fills=" << r.fill_count << "\n";
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "post_only=true mass quote rejected: " << e.what() << "\n";
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // post_only=false (relaxed): crossing leg takes liquidity, rests remainder.
+    std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
+    try {
+        auto mq = client.mass_quote(
+            SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                      << "  fills=" << r.fill_count << "\n";
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "post_only=false mass quote rejected: " << e.what() << "\n";
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     std::cout << "Cancelling original BUY (cleanup)...\n";
     try {

@@ -2,12 +2,13 @@
 ///
 /// Demonstrates:
 ///   1. Load credentials from .env / environment
-///   2. Connect and authenticate
+///   2. Connect and authenticate (Noise XK encrypted WebSocket session)
 ///   3. Register callbacks for order + position updates
 ///   4. Subscribe to private streams
 ///   5. Place, modify, and cancel MARKET/LIMIT orders
-///   6. Drain queued updates with try_recv_order()
-///   7. Clean disconnect
+///   6. Mass-quote / batch-cancel ladder demo
+///   7. Drain queued updates with try_recv_order()
+///   8. Clean disconnect
 
 #include <chrono>
 #include <cmath>
@@ -20,7 +21,6 @@
 #include <vector>
 
 #include <godark/godark.hpp>
-#include <godark/rest_client.hpp>
 
 #include "dotenv.hpp"
 
@@ -30,6 +30,14 @@ static std::string env_or(const char* name, const char* fallback) {
     const char* val = std::getenv(name);
     if (val && val[0] != '\0') return val;
     return fallback;
+}
+
+static std::string env_first(std::initializer_list<const char*> names) {
+    for (const char* name : names) {
+        const char* val = std::getenv(name);
+        if (val && val[0] != '\0') return val;
+    }
+    return "";
 }
 
 int main() {
@@ -44,6 +52,9 @@ int main() {
     cfg.api_secret = env_or("GODARK_API_SECRET", "");
     cfg.passphrase = env_or("GODARK_PASSPHRASE", "");
     cfg.base_url = env_or("GODARK_EDGE_URL", "wss://api.godark-dex.com");
+    cfg.noise_static_public_key_hex = env_first(
+        {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
+         "GODARK_NOISE_STATIC_PUBLIC_KEY"});
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
     cfg.transport.command_timeout_sec = 10;
@@ -59,21 +70,12 @@ int main() {
                      "GODARK_PASSPHRASE (or provide them in .env).\n";
         return 1;
     }
+    if (cfg.noise_static_public_key_hex.empty()) {
+        std::cerr << "Missing GDX_NOISE_STATIC_PUBLIC_KEY (64-hex Noise pin).\n";
+        return 1;
+    }
 
     std::cout << "Endpoint: " << cfg.base_url << "\n";
-
-    try {
-        godark::GodarkRestClient::Config rcfg;
-        rcfg.api_key_id = cfg.api_key_id;
-        rcfg.api_secret = cfg.api_secret;
-        rcfg.passphrase = cfg.passphrase;
-        godark::GodarkRestClient rest{rcfg};
-        rest.connect();
-        std::cout << "Balance: shielded_raw=" << rest.get_my_balance().shielded_balance_raw << "\n";
-        rest.disconnect();
-    } catch (const std::exception& e) {
-        std::cerr << "Balance fetch failed: " << e.what() << "\n";
-    }
 
     godark::GodarkClient client(cfg);
 
@@ -86,6 +88,11 @@ int main() {
     int funding_count = 0;
     int settle_count = 0;
     int error_count = 0;
+
+    // BTC-USDC-PERP is symbol_id 1; capture its live mark from snapshots so the
+    // mass-quote ladder/cross prices below can anchor to the real touch instead
+    // of a fixed constant.
+    std::optional<double> last_mark_btc;
 
     client.on_order_update = [&](const godark::OrderUpdate& u) {
         ++order_count;
@@ -108,13 +115,22 @@ int main() {
         std::cout << "SNAP   source=" << static_cast<int>(s.source)
                   << "  rows=" << s.rows.size()
                   << "  ts=" << s.server_timestamp << "\n";
+        for (const auto& row : s.rows) {
+            if (row.symbol_id == 1 && row.mark_price) {
+                try {
+                    last_mark_btc = std::stod(*row.mark_price);
+                } catch (...) {
+                }
+            }
+        }
     };
 
     client.on_system_health = [&](const godark::SystemHealthUpdate& h) {
         ++health_count;
-        std::cout << "HEALTH total=" << h.total_nodes
-                  << "  ready=" << h.ready
-                  << "  accepting=" << (h.accepting_orders ? "yes" : "no") << "\n";
+        std::cout << "HEALTH component=" << h.component_id
+                  << "  state=" << h.state
+                  << "  serving=" << (h.serving ? "yes" : "no")
+                  << "  cause=" << h.cause << "\n";
     };
 
     client.on_balance_update = [&](const godark::BalanceUpdate& b) {
@@ -163,7 +179,7 @@ int main() {
 
     auto uid = client.user_uuid();
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
-              << "  (session encrypted)\n";
+              << "  (Noise XK session)\n";
 
     client.subscribe({"orders", "positions"});
     std::cout << "Subscribed to order + position updates\n";
@@ -242,10 +258,10 @@ int main() {
     // MPC round. Pass std::optional<bool>{false} for the relaxed path, where a
     // crossing leg takes liquidity up to its limit and rests the remainder (the
     // number of taker fills is reported per leg as fill_count).
-    // GDX_BASE anchors the ladder/cross near the live mark (default 64000).
-    double base = std::stod(env_or("GDX_BASE", "64000"));
+    // Anchor to live BTC mark from the snapshot; fall back to GDX_BASE.
+    double base = last_mark_btc.value_or(std::stod(env_or("GDX_BASE", "64000")));
     auto round1 = [](double x) { return std::round(x * 10.0) / 10.0; };
-    std::cout << "Mass-quoting a 3-level BUY ladder (post-only)...\n";
+    std::cout << "Mass-quoting a 3-level BUY ladder (post-only), base=" << base << "...\n";
     std::vector<uint64_t> resting_ids;
     try {
         std::vector<godark::MassQuoteLegInput> ladder = {
@@ -266,7 +282,6 @@ int main() {
                 try {
                     resting_ids.push_back(std::stoull(*r.new_order_id));
                 } catch (...) {
-                    // non-numeric id; skip cleanup for this leg
                 }
             }
         }
@@ -294,8 +309,8 @@ int main() {
     }
 
     // Demonstrate the batch-level post_only flag on a crossing leg.
-    double cross_px = round1(base * 1.02);
-    // post_only=true: a crossing leg is rejected (would-cross, error_code 2018).
+    // Price a BUY ~5% above the live mark (within the ~10% oracle band).
+    double cross_px = round1(base * 1.05);
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
@@ -310,7 +325,6 @@ int main() {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    // post_only=false (relaxed): crossing leg takes liquidity, rests remainder.
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(

@@ -50,6 +50,11 @@ struct MassQuoteLegResult {
 
 /// Batch-level result of a mass quote: one entry per submitted leg.
 struct MassQuoteAck {
+    /// Client-side convenience rollup: true only when `results` is non-empty and
+    /// every leg has a non-"failed" status. This is a coarse summary — a batch
+    /// can succeed at the wire while individual legs fail (e.g. a crossing leg
+    /// in post-only mode). Always inspect per-leg `results` (status / error_code
+    /// / fill_count) for the authoritative outcome.
     bool success = false;
     std::string sequence;
     std::vector<MassQuoteLegResult> results;
@@ -64,6 +69,11 @@ struct BatchCancelLegResult {
 
 /// Batch-level result of a batch cancel: one entry per submitted order id.
 struct BatchCancelAck {
+    /// Client-side convenience rollup: true only when `results` is non-empty and
+    /// every id was cancelled. Note that an id which was not resting is an
+    /// expected partial outcome (cancelled=false, error_code 2003) and will make
+    /// this flag false even though the request itself was processed. Inspect
+    /// per-leg `results` to distinguish partial from total failure.
     bool success = false;
     std::string sequence;
     std::vector<BatchCancelLegResult> results;
@@ -78,6 +88,11 @@ struct BatchModifyLegResult {
 
 /// Batch-level result of a batch modify: one entry per submitted leg.
 struct BatchModifyAck {
+    /// Client-side convenience rollup: true only when `results` is non-empty and
+    /// every leg was modified. Expected partial outcomes — a leg whose amend
+    /// would cross (modified=false, error_code 2018) or a missing order id
+    /// (error_code 2003) — make this flag false. Inspect per-leg `results` for
+    /// the authoritative outcome.
     bool success = false;
     std::string sequence;
     std::vector<BatchModifyLegResult> results;
@@ -99,6 +114,8 @@ struct OrderUpdate {
     std::optional<int64_t> reject_reason_code = std::nullopt;
     int64_t correlation_id = 0;
     int64_t timestamp = 0;
+    /// Human-readable update/rejection text (`msg` / `reject_text` on wire).
+    std::optional<std::string> msg = std::nullopt;
 };
 
 struct PositionUpdate {
@@ -185,16 +202,15 @@ struct PositionsSnapshot {
     std::optional<int64_t> correlation_id = std::nullopt;
 };
 
-/// Sequencer / MPC node health pulse routed via the trading WS.
+/// Unified component health report routed via the trading WS.
 struct SystemHealthUpdate {
-    uint32_t total_nodes = 0;
-    bool accepting_orders = false;
-    uint32_t ready = 0;
-    uint32_t degraded = 0;
-    uint32_t exhausted = 0;
-    uint32_t warming = 0;
-    uint32_t draining = 0;
-    uint32_t waiting = 0;
+    std::string component_id;
+    int state = 0;
+    bool serving = false;
+    std::string cause;
+    uint64_t updated_at_nanos = 0;
+    uint64_t sequence = 0;
+    uint32_t schema_version = 0;
 };
 
 /// Updated shielded balance for the authenticated user.

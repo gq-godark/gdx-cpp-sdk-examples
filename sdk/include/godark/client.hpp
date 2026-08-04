@@ -32,7 +32,7 @@ struct TransportConfig {
     int connect_timeout_sec = 30;
     /// How long to wait for a command (place/cancel/modify) response in seconds.
     int command_timeout_sec = 30;
-    /// How long to wait for the ECDH `session.setup` reply from the edge,
+    /// How long to wait for each Noise XK handshake reply from the edge,
     /// in seconds. Matches Python (`client.py:475`), JS (`client.ts:489`),
     /// and Rust (`client.rs:27`) at 10 s. Older releases hardcoded 5 s,
     /// which flaked on contended localnet clusters where the sequencer was
@@ -65,6 +65,9 @@ struct ClientConfig {
     /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
     /// then to the auth response. Required for local edge instances that omit it.
     std::string user_uuid;
+    /// 64-hex-character pinned Noise XK sequencer static public key. If empty,
+    /// the client reads GDX_NOISE_STATIC_PUBLIC_KEY (then GDX_NOISE_STATIC_PUBKEY).
+    std::string noise_static_public_key_hex;
     /// When true (default), automatic reconnect with backoff after transport disconnect.
     bool auto_reconnect = true;
     /// Bounded buffer size for order/position update queues (drop-oldest when full).
@@ -116,6 +119,18 @@ public:
         double quantity,
         std::optional<double> price = std::nullopt,
         TimeInForce tif = TimeInForce::GTC);
+
+    /// Place an order with explicit confirmation semantics. Ack returns after
+    /// the command ACK; Book waits for OPEN, REJECTED, FILLED,
+    /// PARTIALLY_FILLED, or CANCELLED. The existing overload defaults to Book.
+    OrderAck place_order(
+        const std::string& symbol,
+        Side side,
+        OrderType order_type,
+        double quantity,
+        std::optional<double> price,
+        TimeInForce tif,
+        PlaceOrderConfirmation confirmation);
 
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,

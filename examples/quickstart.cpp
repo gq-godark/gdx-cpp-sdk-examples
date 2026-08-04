@@ -3,7 +3,7 @@
 // Place a limit sell, then cancel it.
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
-// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... GODARK_EDGE_URL=wss://api.godark-dex.com ./quickstart
+// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... GDX_NOISE_STATIC_PUBLIC_KEY=... GODARK_EDGE_URL=wss://api.godark-dex.com ./quickstart
 
 #include <cstdlib>
 #include <iostream>
@@ -11,6 +11,14 @@
 
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
+
+static std::string env_first(std::initializer_list<const char*> names) {
+    for (const char* name : names) {
+        const char* val = std::getenv(name);
+        if (val && val[0] != '\0') return val;
+    }
+    return "";
+}
 
 int main() {
     godark_examples::load_dotenv();
@@ -29,6 +37,9 @@ int main() {
     config.api_key_id = key_id_env;
     config.api_secret = secret_env;
     config.passphrase = passphrase_env;
+    config.noise_static_public_key_hex = env_first(
+        {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
+         "GODARK_NOISE_STATIC_PUBLIC_KEY"});
     if (url_env) config.base_url = url_env;
 
     const char* tls_skip = std::getenv("GODARK_TLS_SKIP_VERIFY");

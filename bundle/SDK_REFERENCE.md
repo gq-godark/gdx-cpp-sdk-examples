@@ -4,8 +4,9 @@ This reference describes the API and workflow used by the market-maker-facing
 distribution in this repository.
 
 The MM examples use WebSocket encrypted trading via `godark::GodarkClient`.
-REST and standalone market-data examples are intentionally excluded from this
-distribution.
+Encrypted REST trading is not supported — all order flow (place / modify /
+cancel / mass-quote) runs over the Noise XK WebSocket client. Standalone
+market-data examples are excluded from this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -50,7 +51,7 @@ Use `.env.example` as the template for your local `.env`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect()` | Authenticate and establish encrypted session |
+| `connect` | `void connect()` | Authenticate and establish Noise XK encrypted WebSocket session |
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
@@ -63,6 +64,8 @@ Use `.env.example` as the template for your local `.env`.
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
 | `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, leverage?, post_only?)` | Bulk cancel-replace ladder |
+| `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders |
 
 ### Streams
 
@@ -180,7 +183,7 @@ All SDK exceptions inherit from `godark::Error`:
 | File | Purpose |
 |------|---------|
 | `examples/quickstart.cpp` | Minimal connect, place, cancel |
-| `examples/full_trader_example.cpp` | Reference bot flow with callbacks and order lifecycle |
+| `examples/full_trader_example.cpp` | Reference bot flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
 
 ## CMake integration
 

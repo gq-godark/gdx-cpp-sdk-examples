@@ -80,12 +80,10 @@ struct ClientConfig {
 
 /// Encrypted trading client for the GoDark exchange.
 ///
-/// **Single-flight command concurrency**: Only one order command
-/// (place_order, cancel_order, modify_order) may be in-flight at a time.
-/// The transport tracks a single pending command slot; issuing a second
-/// command before the first completes will cause undefined behavior.
-/// In practice, call these methods sequentially (each blocks until the
-/// exchange responds or the command_timeout expires).
+/// Encrypted order commands (place/cancel/modify/batch) are multiplexed by
+/// correlation ID on the client: multiple may be in flight on one session.
+/// Cleartext transport commands (subscribe, auth, noise handshake) remain
+/// single-flight on the transport pending-command slot.
 class GODARK_API GodarkClient {
 public:
     explicit GodarkClient(const ClientConfig& config);

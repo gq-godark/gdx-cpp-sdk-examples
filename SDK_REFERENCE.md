@@ -12,9 +12,11 @@ layout / pin discipline, refresh workflow, sourcing-from-git instructions,
 ABI ownership notes).
 
 > Scope: the MM examples use **WebSocket encrypted trading** via
-> `godark::GodarkClient`. REST and standalone market-data clients ship in
-> the same library but are outside the bundled examples in this
-> distribution. Order placement support is limited to `MARKET` and `LIMIT`.
+> `godark::GodarkClient`. Encrypted REST trading is not supported — all order
+> flow (place / modify / cancel / mass-quote) runs over the Noise XK WebSocket
+> client. Standalone market-data clients ship in the same library but are
+> outside the bundled examples in this distribution. Order placement support
+> is limited to `MARKET` and `LIMIT`.
 
 ## Quick Start
 
@@ -44,6 +46,7 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.
@@ -99,7 +102,7 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect()` | Authenticate and establish encrypted session |
+| `connect` | `void connect()` | Authenticate and establish Noise XK encrypted WebSocket session |
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
@@ -112,6 +115,9 @@ consumer site.
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
 | `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, leverage?, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
+| `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders in one request |
+| `batch_modify` | `BatchModifyAck batch_modify(symbol, legs)` | Amend multiple resting orders in one request |
 
 ### Streams
 
@@ -267,7 +273,7 @@ All SDK exceptions inherit from `godark::Error` (which itself inherits from
 | Type | When |
 |------|------|
 | `AuthenticationError` | API key rejection at session bring-up |
-| `SessionError` | ECDH session failure |
+| `SessionError` | Noise XK handshake or rekey failure |
 | `OrderError` | Order rejected; carries `std::optional<std::string> error_code` with the symbolic reason |
 | `ConnectionError` | Transport-level disconnect or failure |
 | `EncryptionError` | Cipher / nonce failure on encrypted payloads |
@@ -296,7 +302,7 @@ pattern.
 | File | Purpose |
 |------|---------|
 | `examples/quickstart.cpp` | Minimal connect, place, cancel |
-| `examples/full_trader_example.cpp` | Reference bot flow with callbacks and order lifecycle |
+| `examples/full_trader_example.cpp` | Reference bot flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
 | `examples/dotenv.hpp` | Header-only `.env` loader used by both examples |
 
 ## CMake integration

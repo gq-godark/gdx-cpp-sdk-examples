@@ -2,21 +2,25 @@
 ///
 /// Demonstrates:
 ///   1. Load credentials from .env / environment
-///   2. Connect and authenticate
+///   2. Connect and authenticate (Noise XK encrypted WebSocket session)
 ///   3. Register callbacks for order + position updates
 ///   4. Subscribe to private streams
 ///   5. Place, modify, and cancel MARKET/LIMIT orders
-///   6. Drain queued updates with try_recv_order()
-///   7. Clean disconnect
+///   6. Mass-quote / batch-cancel ladder demo
+///   7. Drain queued updates with try_recv_order()
+///   8. Clean disconnect
 
 #include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <godark/godark.hpp>
-#include <godark/rest_client.hpp>
 
 #include "dotenv.hpp"
 
@@ -26,6 +30,14 @@ static std::string env_or(const char* name, const char* fallback) {
     const char* val = std::getenv(name);
     if (val && val[0] != '\0') return val;
     return fallback;
+}
+
+static std::string env_first(std::initializer_list<const char*> names) {
+    for (const char* name : names) {
+        const char* val = std::getenv(name);
+        if (val && val[0] != '\0') return val;
+    }
+    return "";
 }
 
 int main() {
@@ -40,6 +52,9 @@ int main() {
     cfg.api_secret = env_or("GODARK_API_SECRET", "");
     cfg.passphrase = env_or("GODARK_PASSPHRASE", "");
     cfg.base_url = env_or("GODARK_EDGE_URL", "wss://api.godark-dex.com");
+    cfg.noise_static_public_key_hex = env_first(
+        {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
+         "GODARK_NOISE_STATIC_PUBLIC_KEY"});
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
     cfg.transport.command_timeout_sec = 10;
@@ -55,21 +70,12 @@ int main() {
                      "GODARK_PASSPHRASE (or provide them in .env).\n";
         return 1;
     }
+    if (cfg.noise_static_public_key_hex.empty()) {
+        std::cerr << "Missing GDX_NOISE_STATIC_PUBLIC_KEY (64-hex Noise pin).\n";
+        return 1;
+    }
 
     std::cout << "Endpoint: " << cfg.base_url << "\n";
-
-    try {
-        godark::GodarkRestClient::Config rcfg;
-        rcfg.api_key_id = cfg.api_key_id;
-        rcfg.api_secret = cfg.api_secret;
-        rcfg.passphrase = cfg.passphrase;
-        godark::GodarkRestClient rest{rcfg};
-        rest.connect();
-        std::cout << "Balance: shielded_raw=" << rest.get_my_balance().shielded_balance_raw << "\n";
-        rest.disconnect();
-    } catch (const std::exception& e) {
-        std::cerr << "Balance fetch failed: " << e.what() << "\n";
-    }
 
     godark::GodarkClient client(cfg);
 
@@ -82,6 +88,11 @@ int main() {
     int funding_count = 0;
     int settle_count = 0;
     int error_count = 0;
+
+    // BTC-USDC-PERP is symbol_id 1; capture its live mark from snapshots so the
+    // mass-quote ladder/cross prices below can anchor to the real touch instead
+    // of a fixed constant.
+    std::optional<double> last_mark_btc;
 
     client.on_order_update = [&](const godark::OrderUpdate& u) {
         ++order_count;
@@ -104,13 +115,22 @@ int main() {
         std::cout << "SNAP   source=" << static_cast<int>(s.source)
                   << "  rows=" << s.rows.size()
                   << "  ts=" << s.server_timestamp << "\n";
+        for (const auto& row : s.rows) {
+            if (row.symbol_id == 1 && row.mark_price) {
+                try {
+                    last_mark_btc = std::stod(*row.mark_price);
+                } catch (...) {
+                }
+            }
+        }
     };
 
     client.on_system_health = [&](const godark::SystemHealthUpdate& h) {
         ++health_count;
-        std::cout << "HEALTH total=" << h.total_nodes
-                  << "  ready=" << h.ready
-                  << "  accepting=" << (h.accepting_orders ? "yes" : "no") << "\n";
+        std::cout << "HEALTH component=" << h.component_id
+                  << "  state=" << h.state
+                  << "  serving=" << (h.serving ? "yes" : "no")
+                  << "  cause=" << h.cause << "\n";
     };
 
     client.on_balance_update = [&](const godark::BalanceUpdate& b) {
@@ -159,7 +179,7 @@ int main() {
 
     auto uid = client.user_uuid();
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
-              << "  (session encrypted)\n";
+              << "  (Noise XK session)\n";
 
     client.subscribe({"orders", "positions"});
     std::cout << "Subscribed to order + position updates\n";
@@ -230,6 +250,118 @@ int main() {
                   << " status=" << godark::to_string(u->status) << "\n";
     }
     std::cout << "Drained " << drained << " queued order update(s)\n";
+
+    // --- Bulk quote (mass quote) ---
+    // Place a whole ladder of resting quotes in one batched request. Passing
+    // std::nullopt (or true) for post_only keeps post-only behaviour: a leg
+    // that would cross is rejected as "failed" so the batch fuses into a single
+    // MPC round. Pass std::optional<bool>{false} for the relaxed path, where a
+    // crossing leg takes liquidity up to its limit and rests the remainder (the
+    // number of taker fills is reported per leg as fill_count).
+    // Anchor to live BTC mark from the snapshot; fall back to GDX_BASE.
+    double base = last_mark_btc.value_or(std::stod(env_or("GDX_BASE", "64000")));
+    auto round1 = [](double x) { return std::round(x * 10.0) / 10.0; };
+    std::cout << "Mass-quoting a 3-level BUY ladder (post-only), base=" << base << "...\n";
+    std::vector<uint64_t> resting_ids;
+    try {
+        std::vector<godark::MassQuoteLegInput> ladder = {
+            {"BUY", round1(base * (1 - 0.003)), 0.02},
+            {"BUY", round1(base * (1 - 0.006)), 0.02},
+            {"BUY", round1(base * (1 - 0.009)), 0.02},
+        };
+        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
+        std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
+                  << "  sequence=" << mq.sequence
+                  << "  legs=" << mq.results.size() << "\n";
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
+                      << "  fills=" << r.fill_count
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-") << "\n";
+            if (r.status == "open" && r.new_order_id) {
+                try {
+                    resting_ids.push_back(std::stoull(*r.new_order_id));
+                } catch (...) {
+                }
+            }
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "Mass quote rejected: " << e.what() << "\n";
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    if (!resting_ids.empty()) {
+        std::cout << "Batch-cancelling " << resting_ids.size()
+                  << " ladder orders (cleanup)...\n";
+        try {
+            auto bc = client.batch_cancel(SYMBOL, resting_ids);
+            for (const auto& r : bc.results) {
+                std::cout << "  cancel id=" << r.order_id
+                          << ": cancelled=" << (r.cancelled ? "true" : "false")
+                          << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                          << "\n";
+            }
+        } catch (const godark::Error& e) {
+            std::cerr << "Batch cancel rejected: " << e.what() << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    // Demonstrate the batch-level post_only flag on a crossing leg.
+    // Price a BUY ~5% above the live mark (within the ~10% oracle band).
+    double cross_px = round1(base * 1.05);
+    std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
+    try {
+        auto mq = client.mass_quote(
+            SYMBOL, {{"BUY", cross_px, 0.001}}, 1, std::optional<bool>{true});
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                      << "  fills=" << r.fill_count << "\n";
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "post_only=true mass quote rejected: " << e.what() << "\n";
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
+    try {
+        auto mq = client.mass_quote(
+            SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
+        std::vector<std::uint64_t> stray_ids;
+        for (const auto& r : mq.results) {
+            std::cout << "  leg " << r.leg_index << ": status=" << r.status
+                      << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
+                      << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                      << "  fills=" << r.fill_count << "\n";
+            if (r.status == "open" && r.new_order_id) {
+                try {
+                    stray_ids.push_back(std::stoull(*r.new_order_id));
+                } catch (...) {
+                    // non-numeric id; skip
+                }
+            }
+        }
+        if (!stray_ids.empty()) {
+            std::cout << "Batch-cancelling " << stray_ids.size()
+                      << " post_only=false remainder(s)...\n";
+            try {
+                auto bc = client.batch_cancel(SYMBOL, stray_ids);
+                for (const auto& r : bc.results) {
+                    std::cout << "  cancel id=" << r.order_id
+                              << ": cancelled=" << (r.cancelled ? "true" : "false")
+                              << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                              << "\n";
+                }
+            } catch (const godark::Error& e) {
+                std::cerr << "post_only=false remainder cancel rejected: " << e.what() << "\n";
+            }
+        }
+    } catch (const godark::Error& e) {
+        std::cerr << "post_only=false mass quote rejected: " << e.what() << "\n";
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     std::cout << "Cancelling original BUY (cleanup)...\n";
     try {

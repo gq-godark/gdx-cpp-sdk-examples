@@ -41,6 +41,8 @@ Copy `.env.example` to `.env` and set:
 
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
+- `GODARK_PASSPHRASE`
+- `GDX_NOISE_STATIC_PUBLIC_KEY` (64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`)
 
 ```bash
 cp .env.example .env

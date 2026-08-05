@@ -329,11 +329,34 @@ int main() {
     try {
         auto mq = client.mass_quote(
             SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
+        std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  new_order_id=" << (r.new_order_id ? *r.new_order_id : "-")
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
                       << "  fills=" << r.fill_count << "\n";
+            if (r.status == "open" && r.new_order_id) {
+                try {
+                    stray_ids.push_back(std::stoull(*r.new_order_id));
+                } catch (...) {
+                    // non-numeric id; skip
+                }
+            }
+        }
+        if (!stray_ids.empty()) {
+            std::cout << "Batch-cancelling " << stray_ids.size()
+                      << " post_only=false remainder(s)...\n";
+            try {
+                auto bc = client.batch_cancel(SYMBOL, stray_ids);
+                for (const auto& r : bc.results) {
+                    std::cout << "  cancel id=" << r.order_id
+                              << ": cancelled=" << (r.cancelled ? "true" : "false")
+                              << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
+                              << "\n";
+                }
+            } catch (const godark::Error& e) {
+                std::cerr << "post_only=false remainder cancel rejected: " << e.what() << "\n";
+            }
         }
     } catch (const godark::Error& e) {
         std::cerr << "post_only=false mass quote rejected: " << e.what() << "\n";

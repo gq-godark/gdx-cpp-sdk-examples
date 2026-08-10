@@ -112,7 +112,7 @@ cmake --build build -j
 
 | Target | Source | Purpose |
 |--------|--------|---------|
-| `quickstart` | `examples/quickstart.cpp` | Minimal connect → place LIMIT sell far from touch → cancel |
+| `quickstart` | `examples/quickstart.cpp` | Minimal connect → `subscribe({"orders"})` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel; Linux x86_64 ZIP) |
 | `full_trader_example` | `examples/full_trader_example.cpp` | Reference bot flow with callbacks for all sequencer push variants, place / modify / cancel, mass-quote / batch-cancel, session summary |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and

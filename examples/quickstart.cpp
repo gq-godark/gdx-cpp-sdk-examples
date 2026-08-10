@@ -56,6 +56,9 @@ int main() {
         client.connect();
         std::cout << "Connected as user " << *client.user_uuid() << "\n";
 
+        // Book confirmation waits on private order updates; subscribe first.
+        client.subscribe({"orders"});
+
         const std::string symbol = "BTC-USDC-PERP";
         try {
             auto ack = client.place_order(

@@ -60,11 +60,11 @@ Required keys:
 - `GODARK_API_KEY_ID`
 - `GODARK_API_SECRET`
 - `GODARK_PASSPHRASE` — required for API key-pair auth.
-- `GDX_NOISE_STATIC_PUBLIC_KEY` — required for encrypted WebSocket trading (64-hex sequencer static key). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
 
 Optional:
 
-- `GODARK_EDGE_URL` — local testing only; if unset, examples use `wss://api.godark-dex.com`. The SDK derives the REST host from this same URL.
+- `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset). The SDK derives the REST host from this same URL.
+- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer Noise pin. **Not required for public testnet** — the SDK Environment Testnet preset bakes it in. Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 

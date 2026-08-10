@@ -51,10 +51,16 @@ int main() {
     cfg.api_key_id = env_or("GODARK_API_KEY_ID", "");
     cfg.api_secret = env_or("GODARK_API_SECRET", "");
     cfg.passphrase = env_or("GODARK_PASSPHRASE", "");
-    cfg.base_url = env_or("GODARK_EDGE_URL", "wss://api.godark-dex.com");
-    cfg.noise_static_public_key_hex = env_first(
-        {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
-         "GODARK_NOISE_STATIC_PUBLIC_KEY"});
+    cfg.environment = godark::Environment::Testnet;
+    if (std::string edge = env_or("GODARK_EDGE_URL", ""); !edge.empty()) {
+        cfg.base_url = std::move(edge);
+    }
+    if (std::string pin = env_first(
+            {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
+             "GODARK_NOISE_STATIC_PUBLIC_KEY"});
+        !pin.empty()) {
+        cfg.noise_static_public_key_hex = std::move(pin);
+    }
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
     cfg.transport.command_timeout_sec = 10;
@@ -70,12 +76,11 @@ int main() {
                      "GODARK_PASSPHRASE (or provide them in .env).\n";
         return 1;
     }
-    if (cfg.noise_static_public_key_hex.empty()) {
-        std::cerr << "Missing GDX_NOISE_STATIC_PUBLIC_KEY (64-hex Noise pin).\n";
-        return 1;
-    }
 
-    std::cout << "Endpoint: " << cfg.base_url << "\n";
+    std::cout << "Endpoint: "
+              << (cfg.base_url.empty() ? godark::edge_base_url(godark::Environment::Testnet)
+                                       : cfg.base_url)
+              << "\n";
 
     godark::GodarkClient client(cfg);
 

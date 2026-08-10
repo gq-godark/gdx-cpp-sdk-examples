@@ -6,9 +6,11 @@
 // GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
 // Optional: GODARK_EDGE_URL / GDX_NOISE_STATIC_PUBLIC_KEY (Testnet defaults are baked in)
 
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
@@ -68,6 +70,9 @@ int main() {
                 0.01,
                 999999.0);
             std::cout << "Place OK -- order_id=" << ack.order_id << "\n";
+
+            // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
             auto cancel = client.cancel_order(ack.order_id, symbol);
             std::cout << "Cancel OK -- order_id=" << cancel.order_id << "\n";

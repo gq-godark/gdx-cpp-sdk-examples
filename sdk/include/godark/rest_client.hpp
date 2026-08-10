@@ -30,7 +30,10 @@ public:
         std::optional<std::string> rest_base_url;
         /// Fallback when JWT omits `user_uuid` (local edge).
         std::optional<std::string> user_uuid;
+        /// Overrides applied after edge fetch (or sole map when [`explicit_symbol_map`]).
         std::unordered_map<std::string, uint64_t> symbol_overrides;
+        /// When true, use [`symbol_overrides`] only and skip edge instruments fetch.
+        bool explicit_symbol_map = false;
     };
 
     explicit GodarkRestClient(Config cfg);

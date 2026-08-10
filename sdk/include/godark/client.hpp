@@ -7,6 +7,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <nlohmann/json_fwd.hpp>
@@ -18,9 +19,81 @@
 
 namespace godark {
 
-/// Load symbol map from the embedded shared/symbols.json (build-time).
-/// Falls back to a small hardcoded map if the JSON was unavailable.
+/// Load offline fallback symbol map (embedded shared/symbols.json at build time).
+/// Production clients fetch live instruments from edge on connect unless
+/// [`ClientConfig::explicit_symbol_map`] is set.
 GODARK_API std::map<std::string, uint64_t> load_default_symbol_map();
+
+/// Default edge base URL (host only) for public testnet.
+inline constexpr const char* kDefaultTestnetEdgeBaseUrl = "wss://api.godark-dex.com";
+
+/// Default edge base URL (host only) for public Devnet.
+inline constexpr const char* kDefaultDevnetEdgeBaseUrl = "ws://18.143.165.149:13300";
+
+/// Sequencer Noise XK static public key for public testnet (64 hex).
+/// This is a public pin, not a user secret.
+inline constexpr const char* kTestnetNoiseStaticPublicKeyHex =
+    "a9fdd7f26c0de36d82811e9fe1df2509960cd5b25eef037355e209b9222bea7d";
+
+/// Sequencer Noise XK static public key for public Devnet (64 hex).
+/// This is a public pin, not a user secret.
+inline constexpr const char* kDevnetNoiseStaticPublicKeyHex =
+    "a6807e2f6cd04b54cc19be2fd4faea2a1239f1e2896912d91222678ab54cdd45";
+
+/// Named deployment target. Selects the default edge URL and, when known,
+/// a baked-in sequencer Noise XK public key pin.
+///
+/// Explicit `ClientConfig::base_url` / `noise_static_public_key_hex` and the
+/// corresponding environment variables still win over these presets.
+enum class Environment {
+    /// Public testnet (`wss://api.godark-dex.com`) with the published Noise pin.
+    Testnet,
+    /// Public Devnet (`ws://18.143.165.149:13300`) with its own Noise pin.
+    Devnet,
+    /// Local edge (`ws://127.0.0.1:4000`). No baked-in Noise pin — set via
+    /// `noise_static_public_key_hex` or `GDX_NOISE_STATIC_PUBLIC_KEY`.
+    Localnet,
+};
+
+/// Default edge base URL for \p environment (host only).
+[[nodiscard]] inline constexpr const char* edge_base_url(Environment environment) noexcept {
+    switch (environment) {
+        case Environment::Testnet:
+            return kDefaultTestnetEdgeBaseUrl;
+        case Environment::Devnet:
+            return kDefaultDevnetEdgeBaseUrl;
+        case Environment::Localnet:
+            return "ws://127.0.0.1:4000";
+    }
+    return kDefaultTestnetEdgeBaseUrl;
+}
+
+/// Baked-in sequencer Noise XK static public key (64 hex), or `nullptr` when
+/// the environment has none (Localnet).
+[[nodiscard]] inline constexpr const char* environment_noise_static_public_key_hex(
+    Environment environment) noexcept {
+    switch (environment) {
+        case Environment::Testnet:
+            return kTestnetNoiseStaticPublicKeyHex;
+        case Environment::Devnet:
+            return kDevnetNoiseStaticPublicKeyHex;
+        case Environment::Localnet:
+            return nullptr;
+    }
+    return nullptr;
+}
+
+/// Resolve edge base URL: non-empty explicit > `GODARK_EDGE_URL` /
+/// `GDX_EDGE_URL` > environment preset.
+GODARK_API std::string resolve_edge_base_url(
+    std::string_view explicit_url,
+    Environment environment = Environment::Testnet);
+
+/// Resolve Noise XK pin: non-empty explicit > env vars >
+/// baked-in environment pin (empty when Localnet and unset).
+GODARK_API std::string resolve_noise_static_public_key_hex(
+    std::string_view explicit_hex,
+    Environment environment = Environment::Testnet);
 
 /// WebSocket transport configuration (TLS, headers, timeouts).
 struct TransportConfig {
@@ -55,18 +128,25 @@ struct ClientConfig {
     std::string passphrase;
     /// Standalone API key (sent as-is). Use either api_key OR api_key_id+api_secret+passphrase.
     std::string api_key;
+    /// Named deployment. Defaults to [`Environment::Testnet`], which supplies
+    /// the public testnet edge URL and Noise XK pin when those are not set
+    /// explicitly or via environment variables. Use [`Environment::Devnet`]
+    /// for the Devnet edge/pin, or [`Environment::Localnet`] for a local edge.
+    Environment environment = Environment::Testnet;
     /// WebSocket base URL. The client appends `/ws/v1` automatically (the
     /// canonical endpoint per the public docs). Legacy `/ws` suffixes are
-    /// upgraded transparently. Defaults to the public testnet host
-    /// `wss://api.godark-dex.com` (no public mainnet today); override via
-    /// `base_url` directly or read `GODARK_EDGE_URL` / `GDX_EDGE_URL` at
-    /// the call site to point at a localnet edge for development.
-    std::string base_url = "wss://api.godark-dex.com";
+    /// upgraded transparently. Empty (default) resolves as: this field >
+    /// `GODARK_EDGE_URL` / `GDX_EDGE_URL` > [`environment`] preset
+    /// (testnet `wss://api.godark-dex.com`, Devnet `ws://18.143.165.149:13300`;
+    /// no public mainnet today).
+    std::string base_url;
     /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
     /// then to the auth response. Required for local edge instances that omit it.
     std::string user_uuid;
-    /// 64-hex-character pinned Noise XK sequencer static public key. If empty,
-    /// the client reads GDX_NOISE_STATIC_PUBLIC_KEY (then GDX_NOISE_STATIC_PUBKEY).
+    /// 64-hex-character pinned Noise XK sequencer static public key. Empty
+    /// resolves as: this field > `GDX_NOISE_STATIC_PUBLIC_KEY` (aliases
+    /// `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`) >
+    /// baked-in pin from [`environment`] (Testnet/Devnet only).
     std::string noise_static_public_key_hex;
     /// When true (default), automatic reconnect with backoff after transport disconnect.
     bool auto_reconnect = true;
@@ -74,8 +154,11 @@ struct ClientConfig {
     size_t stream_buffer_size = 256;
     /// WebSocket transport settings.
     TransportConfig transport;
-    /// Symbol name -> numeric ID mapping. Loaded from shared/symbols.json by default.
+    /// Symbol name -> numeric ID mapping. Offline fallback until connect; replaced
+    /// from edge ``GET /api/v1/instruments`` unless [`explicit_symbol_map`] is true.
     std::map<std::string, uint64_t> symbol_map = load_default_symbol_map();
+    /// When true, use [`symbol_map`] as-is and skip edge instruments fetch on connect.
+    bool explicit_symbol_map = false;
 };
 
 /// Encrypted trading client for the GoDark exchange.

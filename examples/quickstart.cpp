@@ -3,7 +3,8 @@
 // Place a limit sell, then cancel it.
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
-// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... GDX_NOISE_STATIC_PUBLIC_KEY=... GODARK_EDGE_URL=wss://api.godark-dex.com ./quickstart
+// GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
+// Optional: GODARK_EDGE_URL / GDX_NOISE_STATIC_PUBLIC_KEY (Testnet defaults are baked in)
 
 #include <cstdlib>
 #include <iostream>
@@ -37,10 +38,14 @@ int main() {
     config.api_key_id = key_id_env;
     config.api_secret = secret_env;
     config.passphrase = passphrase_env;
-    config.noise_static_public_key_hex = env_first(
-        {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
-         "GODARK_NOISE_STATIC_PUBLIC_KEY"});
-    if (url_env) config.base_url = url_env;
+    config.environment = godark::Environment::Testnet;
+    if (std::string pin = env_first(
+            {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
+             "GODARK_NOISE_STATIC_PUBLIC_KEY"});
+        !pin.empty()) {
+        config.noise_static_public_key_hex = std::move(pin);
+    }
+    if (url_env && url_env[0] != '\0') config.base_url = url_env;
 
     const char* tls_skip = std::getenv("GODARK_TLS_SKIP_VERIFY");
     if (tls_skip && (std::string(tls_skip) == "1" || std::string(tls_skip) == "true"))

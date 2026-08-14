@@ -138,7 +138,9 @@ struct LeverageSetting {
 };
 
 struct LeverageSettings {
+    std::string user_uuid;
     std::vector<LeverageSetting> settings;
+    uint64_t server_timestamp = 0;
 };
 
 struct MeProfile {
@@ -200,6 +202,23 @@ struct PositionsSnapshot {
     /// Echoed from the original `SubscribePositions` request — present on
     /// `Initial` snapshots only.
     std::optional<int64_t> correlation_id = std::nullopt;
+};
+
+/// One resting order row inside an [`OpenOrdersSnapshot`].
+struct OpenOrderRow {
+    std::string order_id;
+    uint64_t symbol_id = 0;
+    uint32_t leverage = 1;
+    std::string price;
+    std::string quantity;
+    std::string remaining_qty;
+};
+
+/// Encrypted `NodeResponse::OpenOrdersSnapshot` push (subscribe / UpdateLeverage refresh).
+struct OpenOrdersSnapshot {
+    std::vector<OpenOrderRow> rows;
+    uint64_t server_timestamp = 0;
+    int64_t correlation_id = 0;
 };
 
 /// Unified component health report routed via the trading WS.

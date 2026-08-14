@@ -196,6 +196,21 @@ int main() {
         return out;
     };
 
+    std::cout << "Setting leverage to 1 via update_leverage...\n";
+    try {
+        auto lev_ack = client.update_leverage(SYMBOL, 1);
+        std::cout << "update_leverage: success=" << (lev_ack.success ? "true" : "false")
+                  << "  order_id=" << lev_ack.order_id << "\n";
+    } catch (const godark::OrderError& e) {
+        std::cerr << "update_leverage rejected: " << fmt_err(e) << "\n";
+        client.disconnect();
+        return 1;
+    } catch (const godark::Error& e) {
+        std::cerr << "update_leverage failed: " << e.what() << "\n";
+        client.disconnect();
+        return 1;
+    }
+
     std::cout << "Placing limit BUY...\n";
     godark::OrderAck buy_ack;
     try {
@@ -274,7 +289,7 @@ int main() {
             {"BUY", round1(base * (1 - 0.006)), 0.02},
             {"BUY", round1(base * (1 - 0.009)), 0.02},
         };
-        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
+        auto mq = client.mass_quote(SYMBOL, ladder, std::nullopt);
         std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
                   << "  sequence=" << mq.sequence
                   << "  legs=" << mq.results.size() << "\n";
@@ -319,7 +334,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.001}}, 1, std::optional<bool>{true});
+            SYMBOL, {{"BUY", cross_px, 0.001}}, std::optional<bool>{true});
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
@@ -333,7 +348,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
+            SYMBOL, {{"BUY", cross_px, 0.003}}, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status

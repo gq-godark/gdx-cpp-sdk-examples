@@ -7,3 +7,4 @@ endfunction()
 # --- Trading examples (public godark.hpp) ---
 godark_example(quickstart quickstart.cpp)
 godark_example(full_trader_example full_trader_example.cpp)
+godark_example(rest_client_example rest_client_example.cpp)

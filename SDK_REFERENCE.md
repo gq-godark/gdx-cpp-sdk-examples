@@ -113,9 +113,10 @@ consumer site.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
+| `update_leverage` | `OrderAck update_leverage(symbol, leverage)` | Set per-symbol account leverage |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
 | `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
-| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, leverage?, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders in one request |
 | `batch_modify` | `BatchModifyAck batch_modify(symbol, legs)` | Amend multiple resting orders in one request |
 
@@ -385,3 +386,7 @@ Layer 2 automation (`auto-bump-sdk-pin.yml`) wraps this loop into a
 rolling auto-PR triggered by `gdx-cpp-sdk` pushes to `main`, using the
 same `ubuntu-24.04` runner as `release.yml` so byte parity is
 deterministic across CI runs.
+
+## RestClient example
+
+`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.

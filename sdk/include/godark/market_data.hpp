@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <nlohmann/json_fwd.hpp>
@@ -11,17 +12,26 @@
 
 namespace godark {
 
-/// Public market-data WebSocket client (order book, trades).
+/// Strip edge `/ws` suffixes and append `/ws/gomarket` (WebSocket scheme).
+GODARK_API std::string gomarket_ws_url(const std::string& base_url);
+
+/// Resolve the market-data WebSocket URL.
+/// Hosted edges default to `/ws/v1`. Override with `GODARK_MARKET_DATA_WS_URL`,
+/// or set `GODARK_MARKET_DATA_USE_GOMARKET=1` for `/ws/gomarket`.
+GODARK_API std::string resolve_market_data_ws_url(const std::string& base_url);
+
+/// Map a market-data JSON message to callback key `channel:symbol`.
+GODARK_API std::optional<std::string> subscription_callback_key(const nlohmann::json& msg);
+
+/// Public market-data WebSocket client (order book, trades, public edge feeds).
 class GODARK_API MarketDataClient {
 public:
-    /// Construct with a base URL. The client appends `/ws/gomarket`
-    /// automatically; trailing `/`, legacy `/ws`, and canonical `/ws/v1`
-    /// suffixes are all stripped before appending.
+    /// Construct with a base URL. Resolved via `resolve_market_data_ws_url`
+    /// (default `/ws/v1`).
     explicit MarketDataClient(const std::string& base_url);
     /// Construct with a transport configuration. `transport.tls_skip_verify=true`
     /// disables peer-certificate verification for the `wss://` handshake (dev /
-    /// testnet only -- never enable against production). The `/ws/gomarket`
-    /// suffix is appended automatically as in the single-arg constructor.
+    /// testnet only -- never enable against production).
     MarketDataClient(const std::string& base_url, TransportConfig transport);
     ~MarketDataClient();
 
@@ -45,6 +55,10 @@ public:
         std::function<void(const nlohmann::json&)> callback);
     void subscribe_trades(
         const std::string& symbol,
+        std::function<void(const nlohmann::json&)> callback);
+    /// Public edge channel on `/ws/v1`: `volume`, `open_interest`, `funding_rate`.
+    void subscribe_public_channel(
+        const std::string& channel,
         std::function<void(const nlohmann::json&)> callback);
     void unsubscribe(const std::string& channel, const std::string& symbol);
 

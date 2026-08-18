@@ -15,23 +15,19 @@
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
 
-static std::string env_first(std::initializer_list<const char*> names) {
-    for (const char* name : names) {
-        const char* val = std::getenv(name);
-        if (val && val[0] != '\0') return val;
-    }
-    return "";
-}
-
 int main() {
     godark_examples::load_dotenv();
 
-    const char* key_id_env = std::getenv("GODARK_API_KEY_ID");
-    const char* secret_env = std::getenv("GODARK_API_SECRET");
-    const char* passphrase_env = std::getenv("GODARK_PASSPHRASE");
-    const char* url_env    = std::getenv("GODARK_EDGE_URL");
+    const std::string key_id_env =
+        godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
+    const std::string secret_env =
+        godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
+    const std::string passphrase_env =
+        godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
+    const std::string url_env =
+        godark_examples::env_first({"GODARK_EDGE_URL", "GDX_EDGE_URL"});
 
-    if (!key_id_env || !secret_env || !passphrase_env) {
+    if (key_id_env.empty() || secret_env.empty() || passphrase_env.empty()) {
         std::cerr << "Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE\n";
         return 1;
     }
@@ -41,16 +37,17 @@ int main() {
     config.api_secret = secret_env;
     config.passphrase = passphrase_env;
     config.environment = godark::Environment::Testnet;
-    if (std::string pin = env_first(
-            {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
-             "GODARK_NOISE_STATIC_PUBLIC_KEY"});
+    if (std::string pin = godark_examples::env_first(
+            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         config.noise_static_public_key_hex = std::move(pin);
     }
-    if (url_env && url_env[0] != '\0') config.base_url = url_env;
+    if (!url_env.empty()) config.base_url = url_env;
 
-    const char* tls_skip = std::getenv("GODARK_TLS_SKIP_VERIFY");
-    if (tls_skip && (std::string(tls_skip) == "1" || std::string(tls_skip) == "true"))
+    const std::string tls_skip =
+        godark_examples::env_first({"GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY"});
+    if (tls_skip == "1" || tls_skip == "true")
         config.transport.tls_skip_verify = true;
 
     try {
@@ -68,7 +65,7 @@ int main() {
                 godark::Side::SELL,
                 godark::OrderType::LIMIT,
                 0.01,
-                999999.0);
+                69515.2);
             std::cout << "Place OK -- order_id=" << ack.order_id << "\n";
 
             // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).

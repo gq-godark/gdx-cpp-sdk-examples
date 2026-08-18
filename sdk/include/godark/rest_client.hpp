@@ -84,6 +84,15 @@ public:
     /// Convenience: resolves wallet_address via `get_me()` (cached), then calls `get_balance`.
     Balance get_my_balance();
 
+    /// Public `GET /api/v1/market-data/funding-rates` (no connect required).
+    nlohmann::json get_funding_rates();
+
+    /// Public `GET /api/v1/market-data/open-interest` (no connect required).
+    nlohmann::json get_open_interest();
+
+    /// Public `GET /api/v1/market-data/volume` (no connect required).
+    nlohmann::json get_volume();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

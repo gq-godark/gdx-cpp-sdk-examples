@@ -51,7 +51,7 @@ enum class Environment {
     /// Public Devnet (`ws://18.143.165.149:13300`) with its own Noise pin.
     Devnet,
     /// Local edge (`ws://127.0.0.1:4000`). No baked-in Noise pin — set via
-    /// `noise_static_public_key_hex` or `GDX_NOISE_STATIC_PUBLIC_KEY`.
+    /// `noise_static_public_key_hex` or `GODARK_NOISE_STATIC_PUBLIC_KEY`.
     Localnet,
 };
 
@@ -144,8 +144,8 @@ struct ClientConfig {
     /// then to the auth response. Required for local edge instances that omit it.
     std::string user_uuid;
     /// 64-hex-character pinned Noise XK sequencer static public key. Empty
-    /// resolves as: this field > `GDX_NOISE_STATIC_PUBLIC_KEY` (aliases
-    /// `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`) >
+    /// resolves as: this field > `GODARK_NOISE_STATIC_PUBLIC_KEY` (aliases
+    /// `GDX_NOISE_STATIC_PUBLIC_KEY`, `GDX_NOISE_STATIC_PUBKEY`) >
     /// baked-in pin from [`environment`] (Testnet/Devnet only).
     std::string noise_static_public_key_hex;
     /// When true (default), automatic reconnect with backoff after transport disconnect.

@@ -220,15 +220,20 @@ public:
                           std::optional<double> new_quantity = std::nullopt);
 
     /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
-    /// legs), fused into one MPC round. `post_only` selects the batch matching
+    /// legs), fused into one MPC round. Per-symbol leverage is account state;
+    /// set it with `update_leverage` before mass-quoting.
+    /// `post_only` selects the batch matching
     /// mode: std::nullopt keeps the node default (post-only), where a leg that
     /// would cross is rejected as "failed"; `false` enables the relaxed path,
     /// where a crossing leg takes liquidity up to its limit and rests the
     /// remainder (per-leg taker fills are surfaced as `fill_count`).
     MassQuoteAck mass_quote(const std::string& symbol,
                             const std::vector<MassQuoteLegInput>& legs,
-                            uint32_t leverage = 1,
                             std::optional<bool> post_only = std::nullopt);
+
+    /// Set per-symbol account leverage (Noise XK WebSocket). Place/mass-quote
+    /// inherit this setting server-side.
+    OrderAck update_leverage(const std::string& symbol, uint32_t leverage);
 
     /// Cancel multiple resting orders on one symbol in a single fanned-out
     /// request (up to 20 ids; zero online MPC rounds). An id that is not resting
@@ -252,6 +257,8 @@ public:
     std::optional<PositionUpdate> try_recv_position();
     /// Non-blocking pull from the bounded `PositionsSnapshot` queue.
     std::optional<PositionsSnapshot> try_recv_positions_snapshot();
+    /// Non-blocking pull from the bounded `OpenOrdersSnapshot` queue.
+    std::optional<OpenOrdersSnapshot> try_recv_open_orders_snapshot();
     /// Non-blocking pull from the bounded sequencer health-pulse queue.
     std::optional<SystemHealthUpdate> try_recv_system_health();
     /// Non-blocking pull from the bounded shielded-balance update queue.
@@ -262,11 +269,15 @@ public:
     std::optional<FundingRateUpdate> try_recv_funding_rate();
     /// Non-blocking pull from the bounded settlement-update queue.
     std::optional<SettlementUpdate> try_recv_settlement();
+    /// Non-blocking pull from the bounded per-user leverage-settings queue.
+    std::optional<LeverageSettings> try_recv_leverage_settings();
 
     std::function<void(const OrderUpdate&)> on_order_update;
     std::function<void(const PositionUpdate&)> on_position_update;
     /// Full per-user positions snapshot (initial / periodic / event-driven).
     std::function<void(const PositionsSnapshot&)> on_positions_snapshot;
+    /// Resting open-orders snapshot (subscribe / UpdateLeverage refresh).
+    std::function<void(const OpenOrdersSnapshot&)> on_open_orders_snapshot;
     /// Sequencer / MPC node health pulse routed via the trading WS.
     std::function<void(const SystemHealthUpdate&)> on_system_health;
     /// Updated shielded balance for the authenticated user.
@@ -277,6 +288,8 @@ public:
     std::function<void(const FundingRateUpdate&)> on_funding_rate_update;
     /// Settlement batch lifecycle updates.
     std::function<void(const SettlementUpdate&)> on_settlement_update;
+    /// Authoritative per-user leverage settings (initial subscribe / update_leverage).
+    std::function<void(const LeverageSettings&)> on_leverage_settings;
     /// Invoked after a successful automatic reconnect and optional channel resubscribe.
     std::function<void()> on_reconnect;
     /// Non-fatal errors (rekey failures, decrypt/parse failures on pushes).

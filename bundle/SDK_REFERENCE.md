@@ -64,7 +64,7 @@ Use `.env.example` as the template for your local `.env`.
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
 | `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
-| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, leverage?, post_only?)` | Bulk cancel-replace ladder |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders |
 
 ### Streams

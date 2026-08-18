@@ -32,14 +32,6 @@ static std::string env_or(const char* name, const char* fallback) {
     return fallback;
 }
 
-static std::string env_first(std::initializer_list<const char*> names) {
-    for (const char* name : names) {
-        const char* val = std::getenv(name);
-        if (val && val[0] != '\0') return val;
-    }
-    return "";
-}
-
 int main() {
     godark_examples::load_dotenv();
 
@@ -48,16 +40,17 @@ int main() {
     std::cout << "Order-type support in this distribution: MARKET, LIMIT\n";
 
     godark::ClientConfig cfg;
-    cfg.api_key_id = env_or("GODARK_API_KEY_ID", "");
-    cfg.api_secret = env_or("GODARK_API_SECRET", "");
-    cfg.passphrase = env_or("GODARK_PASSPHRASE", "");
+    cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
+    cfg.api_secret = godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
+    cfg.passphrase = godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
     cfg.environment = godark::Environment::Testnet;
-    if (std::string edge = env_or("GODARK_EDGE_URL", ""); !edge.empty()) {
+    if (std::string edge = godark_examples::env_first({"GODARK_EDGE_URL", "GDX_EDGE_URL"});
+        !edge.empty()) {
         cfg.base_url = std::move(edge);
     }
-    if (std::string pin = env_first(
-            {"GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY",
-             "GODARK_NOISE_STATIC_PUBLIC_KEY"});
+    if (std::string pin = godark_examples::env_first(
+            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         cfg.noise_static_public_key_hex = std::move(pin);
     }
@@ -67,8 +60,9 @@ int main() {
     cfg.transport.heartbeat_interval_sec = 30;
     cfg.transport.stale_timeout_sec = 60;
 
-    const char* tls_skip = std::getenv("GODARK_TLS_SKIP_VERIFY");
-    if (tls_skip && (std::string(tls_skip) == "1" || std::string(tls_skip) == "true"))
+    const std::string tls_skip =
+        godark_examples::env_first({"GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY"});
+    if (tls_skip == "1" || tls_skip == "true")
         cfg.transport.tls_skip_verify = true;
 
     if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {

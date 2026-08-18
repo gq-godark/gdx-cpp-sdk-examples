@@ -82,6 +82,7 @@ for required in \
     examples/CMakeLists.txt \
     examples/quickstart.cpp \
     examples/full_trader_example.cpp \
+    examples/rest_client_example.cpp \
     examples/dotenv.hpp; do
   if [[ ! -f "${REPO_ROOT}/${required}" ]]; then
     echo "error: required source file missing: ${required}" >&2
@@ -295,6 +296,7 @@ cp "$REPO_ROOT/bundle/SDK_REFERENCE.md"  "$DEST/SDK_REFERENCE.md"
 cp "$REPO_ROOT/examples/CMakeLists.txt"           "$DEST/examples/"
 cp "$REPO_ROOT/examples/quickstart.cpp"           "$DEST/examples/"
 cp "$REPO_ROOT/examples/full_trader_example.cpp"  "$DEST/examples/"
+cp "$REPO_ROOT/examples/rest_client_example.cpp"  "$DEST/examples/"
 cp "$REPO_ROOT/examples/dotenv.hpp"               "$DEST/examples/"
 
 # The SDK ships from the freshly built upstream install, NEVER from the

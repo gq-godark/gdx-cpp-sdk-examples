@@ -386,3 +386,7 @@ Layer 2 automation (`auto-bump-sdk-pin.yml`) wraps this loop into a
 rolling auto-PR triggered by `gdx-cpp-sdk` pushes to `main`, using the
 same `ubuntu-24.04` runner as `release.yml` so byte parity is
 deterministic across CI runs.
+
+## RestClient example
+
+`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.

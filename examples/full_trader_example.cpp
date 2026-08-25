@@ -50,9 +50,24 @@ int main() {
     std::cout << "Order-type support in this distribution: MARKET, LIMIT\n";
 
     godark::ClientConfig cfg;
-    cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
-    cfg.api_secret = godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
-    cfg.passphrase = godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
+    const std::string legacy =
+        godark_examples::env_first({"GODARK_API_KEY", "GDX_API_KEY"});
+    if (!legacy.empty()) {
+        cfg.api_key = legacy;
+        if (auto uid = godark_examples::env_first({"GODARK_USER_UUID", "GDX_USER_UUID"});
+            !uid.empty()) {
+            cfg.user_uuid = uid;
+        }
+    } else {
+        cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
+        cfg.api_secret = godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
+        cfg.passphrase = godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
+        if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {
+            std::cerr << "Missing credentials. Set GODARK_API_KEY_ID, GODARK_API_SECRET and "
+                         "GODARK_PASSPHRASE or legacy GODARK_API_KEY for localnet.\n";
+            return 1;
+        }
+    }
     cfg.environment = godark::Environment::Testnet;
     if (std::string edge = godark_examples::env_first({"GODARK_EDGE_URL", "GDX_EDGE_URL"});
         !edge.empty()) {
@@ -76,9 +91,9 @@ int main() {
     if (tls_skip == "1" || tls_skip == "true")
         cfg.transport.tls_skip_verify = true;
 
-    if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {
+    if (cfg.api_key.empty() && (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty())) {
         std::cerr << "Missing credentials. Set GODARK_API_KEY_ID, GODARK_API_SECRET and "
-                     "GODARK_PASSPHRASE (or provide them in .env).\n";
+                     "GODARK_PASSPHRASE or legacy GODARK_API_KEY for localnet.\n";
         return 1;
     }
 
@@ -202,7 +217,9 @@ int main() {
     };
 
     std::cout << "Setting leverage to 1 via GodarkRestClient.update_leverage...\n";
-    try {
+    if (!cfg.api_key.empty()) {
+        std::cout << "Skipping REST leverage (legacy GODARK_API_KEY; C++ REST client requires key triple)\n";
+    } else try {
         godark::GodarkRestClient::Config rest_cfg;
         rest_cfg.api_key_id = cfg.api_key_id;
         rest_cfg.api_secret = cfg.api_secret;

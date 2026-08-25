@@ -43,12 +43,12 @@ Copy `.env.example` to `.env` and set:
 - `GODARK_API_SECRET`
 - `GODARK_PASSPHRASE`
 
-Public testnet needs only the three credential keys above — the SDK Testnet environment preset supplies the edge URL and Noise pin.
+Public testnet needs only the three credential keys above for hosted testnet; localnet/devnet also require `GDX_HPKE_STATIC_PUBLIC_KEY`.
 
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL.
-- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer Noise pin (**not required for testnet**). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
+- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer HPKE pin (**not required for testnet**). Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
 
 ```bash
 cp .env.example .env

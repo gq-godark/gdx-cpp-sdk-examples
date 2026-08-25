@@ -180,7 +180,7 @@ jobs:
 
           - **Source repo:** \`gq-godark/gdx-cpp-sdk\`
           - **Source SHA:** \`${SDK_FULL}\`
-          - **Workflow:** [.github/workflows/auto-bump-sdk-pin.yml](https://github.com/gq-godark/cpp-sdk-examples/blob/main/.github/workflows/auto-bump-sdk-pin.yml)
+          - **Workflow:** [.github/workflows/auto-bump-sdk-pin.yml](https://github.com/gq-godark/gdx-cpp-sdk-examples/blob/main/.github/workflows/auto-bump-sdk-pin.yml)
 
           ### Review checklist
           - [ ] \`sdk/UPSTREAM_REF\` matches the source SHA above.

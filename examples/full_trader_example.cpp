@@ -2,7 +2,7 @@
 ///
 /// Demonstrates:
 ///   1. Load credentials from .env / environment
-///   2. Connect and authenticate (Noise XK encrypted WebSocket session)
+///   2. Connect and authenticate (HPKE WebSocket session)
 ///   3. Register callbacks for order + position updates
 ///   4. Subscribe to private streams
 ///   5. Place, modify, and cancel MARKET/LIMIT orders
@@ -49,8 +49,9 @@ int main() {
         cfg.base_url = std::move(edge);
     }
     if (std::string pin = godark_examples::env_first(
-            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBKEY"});
+            {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         cfg.noise_static_public_key_hex = std::move(pin);
     }
@@ -178,7 +179,7 @@ int main() {
 
     auto uid = client.user_uuid();
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
-              << "  (Noise XK session)\n";
+              << "  (HPKE session)\n";
 
     client.subscribe({"orders", "positions"});
     std::cout << "Subscribed to order + position updates\n";

@@ -13,7 +13,7 @@ ABI ownership notes).
 
 > Scope: the MM examples use **WebSocket encrypted trading** via
 > `godark::GodarkClient`. Encrypted REST trading is not supported — all order
-> flow (place / modify / cancel / mass-quote) runs over the Noise XK WebSocket
+> flow (place / modify / cancel / mass-quote) runs over the HPKE WebSocket
 > client. Standalone market-data clients ship in the same library but are
 > outside the bundled examples in this distribution. Order placement support
 > is limited to `MARKET` and `LIMIT`.
@@ -102,7 +102,7 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect()` | Authenticate and establish Noise XK encrypted WebSocket session |
+| `connect` | `void connect()` | Authenticate and establish HPKE WebSocket session |
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
@@ -274,7 +274,7 @@ All SDK exceptions inherit from `godark::Error` (which itself inherits from
 | Type | When |
 |------|------|
 | `AuthenticationError` | API key rejection at session bring-up |
-| `SessionError` | Noise XK handshake or rekey failure |
+| `SessionError` | HPKE setup handshake or rekey failure |
 | `OrderError` | Order rejected; carries `std::optional<std::string> error_code` with the symbolic reason |
 | `ConnectionError` | Transport-level disconnect or failure |
 | `EncryptionError` | Cipher / nonce failure on encrypted payloads |

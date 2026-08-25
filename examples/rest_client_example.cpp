@@ -1,7 +1,7 @@
 // GoDark C++ SDK — minimal GodarkRestClient demo.
 //
 // Auth + account reads + public market-data GETs. Encrypted place/cancel/
-// modify/update_leverage require GodarkClient (WebSocket / Noise XK); see
+// modify/update_leverage require GodarkClient (WebSocket / HPKE); see
 // quickstart / full_trader_example.
 //
 //   ./rest_client_example
@@ -73,7 +73,7 @@ int main() {
         }
 
         std::cout << "REST reads succeeded.\n";
-        std::cout << "Encrypted trading requires GodarkClient over WebSocket (Noise XK).\n";
+        std::cout << "Encrypted trading requires GodarkClient over WebSocket (HPKE).\n";
         client.disconnect();
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

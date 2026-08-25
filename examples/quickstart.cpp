@@ -4,7 +4,7 @@
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
 // GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
-// Optional: GODARK_EDGE_URL / GDX_NOISE_STATIC_PUBLIC_KEY (Testnet defaults are baked in)
+// Optional: GODARK_EDGE_URL / GDX_HPKE_STATIC_PUBLIC_KEY (legacy GDX_NOISE_* accepted)
 
 #include <chrono>
 #include <cstdlib>
@@ -38,8 +38,9 @@ int main() {
     config.passphrase = passphrase_env;
     config.environment = godark::Environment::Testnet;
     if (std::string pin = godark_examples::env_first(
-            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBKEY"});
+            {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         config.noise_static_public_key_hex = std::move(pin);
     }

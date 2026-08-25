@@ -39,7 +39,14 @@ int main() {
         godark::GodarkRestClient client{cfg};
 
         std::cout << "connecting (REST auth/token)...\n";
-        client.connect();
+        try {
+            client.connect();
+        } catch (const std::exception& e) {
+            std::cout << "connect skipped: " << e.what() << "\n";
+            std::cout << "REST example covers auth wiring; encrypted reads may require a supported REST host.\n";
+            std::cout << "Encrypted trading requires GodarkClient over WebSocket (HPKE).\n";
+            return 0;
+        }
 
         try {
             auto me = client.get_me();

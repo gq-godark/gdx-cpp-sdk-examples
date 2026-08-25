@@ -47,6 +47,11 @@ Before running the examples, complete this setup flow:
 4. In the frontend, go to **Settings → API Key Management** and click **Create API Key**.
 5. Use the generated key ID and secret for your local `.env`.
 
+Encrypted trading requires a host with **OpenSSL 3.2+ HPKE** support to link
+`libgodark.a` locally. CI release builds use the HPKE-enabled toolchain; if local
+link fails with undefined `OSSL_HPKE_*` symbols, validate via CI or rebuild the
+SDK on an OpenSSL-with-HPKE host before refreshing `sdk/`.
+
 ## Configure credentials
 
 Copy `.env.example` to `.env` and fill in your API credentials:

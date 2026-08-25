@@ -1,8 +1,7 @@
 // GoDark C++ SDK — minimal GodarkRestClient demo.
 //
-// Auth + account reads + public market-data GETs. Encrypted place/cancel/
-// modify/update_leverage require GodarkClient (WebSocket / HPKE); see
-// quickstart / full_trader_example.
+// Auth + account reads. Encrypted place/cancel/modify/update_leverage require
+// GodarkClient (WebSocket / HPKE); see quickstart / full_trader_example.
 //
 //   ./rest_client_example
 //
@@ -39,29 +38,27 @@ int main() {
     try {
         godark::GodarkRestClient client{cfg};
 
-        // Public market-data GETs — no connect() required.
-        auto rates = client.get_funding_rates();
-        auto oi = client.get_open_interest();
-        auto vol = client.get_volume();
-        std::cout << "funding_rates: " << rates.size() << " symbols"
-                  << " (first=" << (rates.empty() ? nlohmann::json(nullptr) : rates[0]) << ")\n";
-        std::cout << "open_interest: " << oi.size() << " symbols"
-                  << " (first=" << (oi.empty() ? nlohmann::json(nullptr) : oi[0]) << ")\n";
-        std::cout << "volume: total_24h=" << vol.value("total_volume_24h", "")
-                  << " symbols=" << vol.value("symbols", nlohmann::json::array()).size() << "\n";
-
         std::cout << "connecting (REST auth/token)...\n";
         client.connect();
 
-        auto me = client.get_me();
-        std::cout << "me: id=" << me.id << " wallet=" << me.wallet_address << " tier=" << me.tier
-                  << "\n";
+        try {
+            auto me = client.get_me();
+            std::cout << "me: id=" << me.id << " wallet=" << me.wallet_address
+                      << " tier=" << me.tier << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "get_me skipped: " << e.what() << "\n";
+        }
 
-        auto lev = client.get_leverage();
-        std::cout << "leverage settings: " << lev.settings.size() << " entries\n";
-        for (std::size_t i = 0; i < lev.settings.size() && i < 5; ++i) {
-            const auto& row = lev.settings[i];
-            std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage << "\n";
+        try {
+            auto lev = client.get_leverage();
+            std::cout << "leverage settings: " << lev.settings.size() << " entries\n";
+            for (std::size_t i = 0; i < lev.settings.size() && i < 5; ++i) {
+                const auto& row = lev.settings[i];
+                std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage
+                          << "\n";
+            }
+        } catch (const std::exception& e) {
+            std::cout << "get_leverage skipped: " << e.what() << "\n";
         }
 
         try {

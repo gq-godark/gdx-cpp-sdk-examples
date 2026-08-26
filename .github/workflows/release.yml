@@ -120,6 +120,21 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
+      - name: Ensure gdx-proto submodule is initialized
+        working-directory: upstream
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [ ! -d gdx-proto/proto ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+            git submodule sync --recursive
+            git submodule update --init --recursive --depth 1
+          fi
+          if [ ! -d gdx-proto/proto ]; then
+            echo "::error::gdx-proto/proto missing after submodule init — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
+            exit 1
+          fi
+
       - name: Compute version + bundle name
         id: ver
         run: |

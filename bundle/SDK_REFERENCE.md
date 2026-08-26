@@ -5,7 +5,7 @@ distribution in this repository.
 
 The MM examples use WebSocket encrypted trading via `godark::GodarkClient`.
 Encrypted REST trading is not supported — all order flow (place / modify /
-cancel / mass-quote) runs over the Noise XK WebSocket client. Standalone
+cancel / mass-quote) runs over the HPKE WebSocket client. Standalone
 market-data examples are excluded from this distribution.
 
 Order placement support in this MM distribution is limited to `MARKET` and
@@ -51,7 +51,7 @@ Use `.env.example` as the template for your local `.env`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `connect` | `void connect()` | Authenticate and establish Noise XK encrypted WebSocket session |
+| `connect` | `void connect()` | Authenticate and establish HPKE WebSocket session |
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
@@ -170,7 +170,7 @@ MM distribution supports placing only `MARKET` and `LIMIT` orders.
 All SDK exceptions inherit from `godark::Error`:
 
 - `AuthenticationError`
-- `SessionError` — Noise XK handshake or rekey failure
+- `SessionError` — HPKE setup handshake or rekey failure
 - `OrderError` — also carries `std::optional<std::string> error_code` with the
   symbolic reason (e.g. `"PRICE_DEVIATION_TOO_LARGE"`, `"MARGIN_INSUFFICIENT"`).
   See `quickstart.cpp` for the catch-and-print pattern.

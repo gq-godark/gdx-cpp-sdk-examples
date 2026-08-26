@@ -4,9 +4,10 @@
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
 // GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
-// Optional: GODARK_EDGE_URL / GDX_NOISE_STATIC_PUBLIC_KEY (Testnet defaults are baked in)
+// Optional: GODARK_EDGE_URL / GDX_HPKE_STATIC_PUBLIC_KEY (legacy GDX_NOISE_* accepted)
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -14,6 +15,16 @@
 
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
+
+static double live_mark_price() {
+    if (const char* raw = std::getenv("GDX_LIVE_PRICE"); raw && raw[0]) {
+        return std::stod(raw);
+    }
+    if (const char* raw = std::getenv("GODARK_E2E_PRICE"); raw && raw[0]) {
+        return std::stod(raw);
+    }
+    return 79000.0;
+}
 
 int main() {
     godark_examples::load_dotenv();
@@ -27,19 +38,29 @@ int main() {
     const std::string url_env =
         godark_examples::env_first({"GODARK_EDGE_URL", "GDX_EDGE_URL"});
 
-    if (key_id_env.empty() || secret_env.empty() || passphrase_env.empty()) {
-        std::cerr << "Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE\n";
-        return 1;
-    }
-
     godark::ClientConfig config;
-    config.api_key_id = key_id_env;
-    config.api_secret = secret_env;
-    config.passphrase = passphrase_env;
+    const std::string legacy =
+        godark_examples::env_first({"GODARK_API_KEY", "GDX_API_KEY"});
+    if (!legacy.empty()) {
+        config.api_key = legacy;
+        if (auto uid = godark_examples::env_first({"GODARK_USER_UUID", "GDX_USER_UUID"});
+            !uid.empty()) {
+            config.user_uuid = uid;
+        }
+    } else if (key_id_env.empty() || secret_env.empty() || passphrase_env.empty()) {
+        std::cerr << "Set GODARK_API_KEY_ID/GODARK_API_SECRET/GODARK_PASSPHRASE "
+                     "or legacy GODARK_API_KEY\n";
+        return 1;
+    } else {
+        config.api_key_id = key_id_env;
+        config.api_secret = secret_env;
+        config.passphrase = passphrase_env;
+    }
     config.environment = godark::Environment::Testnet;
     if (std::string pin = godark_examples::env_first(
-            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBKEY"});
+            {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         config.noise_static_public_key_hex = std::move(pin);
     }
@@ -60,13 +81,16 @@ int main() {
 
         const std::string symbol = "BTC-USDC-PERP";
         try {
+            const double mark = live_mark_price();
+            const double sell_px = std::round(mark * 1.03 * 10.0) / 10.0;
             auto ack = client.place_order(
                 symbol,
                 godark::Side::SELL,
                 godark::OrderType::LIMIT,
                 0.01,
-                69515.2);
-            std::cout << "Place OK -- order_id=" << ack.order_id << "\n";
+                sell_px);
+            std::cout << "Place OK -- order_id=" << ack.order_id
+                      << " (limit SELL @ " << sell_px << ", mark=" << mark << ")\n";
 
             // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
             std::this_thread::sleep_for(std::chrono::milliseconds(500));

@@ -2,7 +2,7 @@
 ///
 /// Demonstrates:
 ///   1. Load credentials from .env / environment
-///   2. Connect and authenticate (Noise XK encrypted WebSocket session)
+///   2. Connect and authenticate (HPKE WebSocket session)
 ///   3. Register callbacks for order + position updates
 ///   4. Subscribe to private streams
 ///   5. Place, modify, and cancel MARKET/LIMIT orders
@@ -32,6 +32,16 @@ static std::string env_or(const char* name, const char* fallback) {
     return fallback;
 }
 
+static double live_mark_price() {
+    if (const char* raw = std::getenv("GDX_LIVE_PRICE"); raw && raw[0]) {
+        return std::stod(raw);
+    }
+    if (const char* raw = std::getenv("GODARK_E2E_PRICE"); raw && raw[0]) {
+        return std::stod(raw);
+    }
+    return 79000.0;
+}
+
 int main() {
     godark_examples::load_dotenv();
 
@@ -40,17 +50,33 @@ int main() {
     std::cout << "Order-type support in this distribution: MARKET, LIMIT\n";
 
     godark::ClientConfig cfg;
-    cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
-    cfg.api_secret = godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
-    cfg.passphrase = godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
+    const std::string legacy =
+        godark_examples::env_first({"GODARK_API_KEY", "GDX_API_KEY"});
+    if (!legacy.empty()) {
+        cfg.api_key = legacy;
+        if (auto uid = godark_examples::env_first({"GODARK_USER_UUID", "GDX_USER_UUID"});
+            !uid.empty()) {
+            cfg.user_uuid = uid;
+        }
+    } else {
+        cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
+        cfg.api_secret = godark_examples::env_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
+        cfg.passphrase = godark_examples::env_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
+        if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {
+            std::cerr << "Missing credentials. Set GODARK_API_KEY_ID, GODARK_API_SECRET and "
+                         "GODARK_PASSPHRASE or legacy GODARK_API_KEY for localnet.\n";
+            return 1;
+        }
+    }
     cfg.environment = godark::Environment::Testnet;
     if (std::string edge = godark_examples::env_first({"GODARK_EDGE_URL", "GDX_EDGE_URL"});
         !edge.empty()) {
         cfg.base_url = std::move(edge);
     }
     if (std::string pin = godark_examples::env_first(
-            {"GODARK_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBKEY"});
+            {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
+             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
         !pin.empty()) {
         cfg.noise_static_public_key_hex = std::move(pin);
     }
@@ -65,9 +91,9 @@ int main() {
     if (tls_skip == "1" || tls_skip == "true")
         cfg.transport.tls_skip_verify = true;
 
-    if (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty()) {
+    if (cfg.api_key.empty() && (cfg.api_key_id.empty() || cfg.api_secret.empty() || cfg.passphrase.empty())) {
         std::cerr << "Missing credentials. Set GODARK_API_KEY_ID, GODARK_API_SECRET and "
-                     "GODARK_PASSPHRASE (or provide them in .env).\n";
+                     "GODARK_PASSPHRASE or legacy GODARK_API_KEY for localnet.\n";
         return 1;
     }
 
@@ -178,7 +204,7 @@ int main() {
 
     auto uid = client.user_uuid();
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
-              << "  (Noise XK session)\n";
+              << "  (HPKE session)\n";
 
     client.subscribe({"orders", "positions"});
     std::cout << "Subscribed to order + position updates\n";
@@ -190,27 +216,42 @@ int main() {
         return out;
     };
 
-    std::cout << "Setting leverage to 1 via update_leverage...\n";
-    try {
-        auto lev_ack = client.update_leverage(SYMBOL, 1);
+    std::cout << "Setting leverage to 1 via GodarkRestClient.update_leverage...\n";
+    if (!cfg.api_key.empty()) {
+        std::cout << "Skipping REST leverage (legacy GODARK_API_KEY; C++ REST client requires key triple)\n";
+    } else try {
+        godark::GodarkRestClient::Config rest_cfg;
+        rest_cfg.api_key_id = cfg.api_key_id;
+        rest_cfg.api_secret = cfg.api_secret;
+        rest_cfg.passphrase = cfg.passphrase;
+        if (!cfg.base_url.empty()) {
+            std::string rest = cfg.base_url;
+            if (rest.rfind("wss://", 0) == 0) rest.replace(0, 6, "https://");
+            else if (rest.rfind("ws://", 0) == 0) rest.replace(0, 5, "http://");
+            const auto pos = rest.find("/ws/v1");
+            if (pos != std::string::npos) rest.erase(pos);
+            rest_cfg.rest_base_url = rest;
+        }
+        godark::GodarkRestClient rest{rest_cfg};
+        rest.connect();
+        auto lev_ack = rest.update_leverage(SYMBOL, 1);
         std::cout << "update_leverage: success=" << (lev_ack.success ? "true" : "false")
                   << "  order_id=" << lev_ack.order_id << "\n";
+        rest.disconnect();
     } catch (const godark::OrderError& e) {
         std::cerr << "update_leverage rejected: " << fmt_err(e) << "\n";
-        client.disconnect();
-        return 1;
     } catch (const godark::Error& e) {
         std::cerr << "update_leverage failed: " << e.what() << "\n";
-        client.disconnect();
-        return 1;
     }
 
-    std::cout << "Placing limit BUY...\n";
+    const double mark = live_mark_price();
+    const double buy_px = std::round(mark * 0.997 * 10.0) / 10.0;
+    std::cout << "Placing limit BUY @ " << buy_px << " (mark=" << mark << ")...\n";
     godark::OrderAck buy_ack;
     try {
         buy_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::LIMIT,
-            0.1, 67500.0, godark::TimeInForce::GTC);
+            0.1, buy_px, godark::TimeInForce::GTC);
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
     } catch (const godark::OrderError& e) {
@@ -225,9 +266,10 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    std::cout << "Modifying order price to 68000...\n";
+    const double modify_px = std::round(mark * 0.996 * 10.0) / 10.0;
+    std::cout << "Modifying order price to " << modify_px << "...\n";
     try {
-        auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, 68000.0);
+        auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_px);
         std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
     } catch (const godark::OrderError& e) {
         std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
@@ -237,11 +279,12 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    std::cout << "Placing limit SELL...\n";
+    const double sell_px = std::round(mark * 1.03 * 10.0) / 10.0;
+    std::cout << "Placing limit SELL @ " << sell_px << "...\n";
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            0.05, 95000.0);
+            0.05, sell_px);
         std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -283,7 +326,7 @@ int main() {
             {"BUY", round1(base * (1 - 0.006)), 0.02},
             {"BUY", round1(base * (1 - 0.009)), 0.02},
         };
-        auto mq = client.mass_quote(SYMBOL, ladder, std::nullopt);
+        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
         std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
                   << "  sequence=" << mq.sequence
                   << "  legs=" << mq.results.size() << "\n";
@@ -328,7 +371,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.001}}, std::optional<bool>{true});
+            SYMBOL, {{"BUY", cross_px, 0.001}}, 1, std::optional<bool>{true});
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
@@ -342,7 +385,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.003}}, std::optional<bool>{false});
+            SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status

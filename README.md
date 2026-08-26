@@ -47,6 +47,11 @@ Before running the examples, complete this setup flow:
 4. In the frontend, go to **Settings → API Key Management** and click **Create API Key**.
 5. Use the generated key ID and secret for your local `.env`.
 
+Encrypted trading requires a host with **OpenSSL 3.2+ HPKE** support to link
+`libgodark.a` locally. CI release builds use the HPKE-enabled toolchain; if local
+link fails with undefined `OSSL_HPKE_*` symbols, validate via CI or rebuild the
+SDK on an OpenSSL-with-HPKE host before refreshing `sdk/`.
+
 ## Configure credentials
 
 Copy `.env.example` to `.env` and fill in your API credentials:
@@ -64,11 +69,22 @@ Required keys:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset). The SDK derives the REST host from this same URL.
-- `GDX_NOISE_STATIC_PUBLIC_KEY` — override the sequencer Noise pin. **Not required for public testnet** — the SDK Environment Testnet preset bakes it in. Aliases: `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`.
+- `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading; legacy `GDX_NOISE_*` env names are still accepted. Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 
 Legacy `GDX_*` names are accepted when the matching `GODARK_*` key is unset.
+
+## Localnet (`gdx up`)
+
+```bash
+GODARK_EDGE_URL=ws://127.0.0.1:13300
+GODARK_API_KEY=test-key-1
+GDX_HPKE_STATIC_PUBLIC_KEY=1d61f116451fdfda1aa4aaf50b7200c3b362d0445bfa2d7ef1f80b3b8881a533
+gdx fund 00000000-0000-4000-8000-000000000001
+```
+
+Copy `VITE_GDX_HPKE_STATIC_PUBKEY` from `gdx-web/.env.localnet` if your pin differs.
 
 ## Install
 

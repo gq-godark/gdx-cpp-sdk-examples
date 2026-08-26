@@ -37,7 +37,8 @@ jobs:
   #   GDX_APP_PRIVATE_KEY   — GitHub App private key (PEM)
   #
   # The app must be installed on gq-godark with read access to gdx-cpp-sdk
-  # AND gdx-proto (gdx-cpp-sdk uses gdx-proto via submodule).
+  # AND gdx-proto. gdx-cpp-sdk does NOT vendor gdx-proto as a submodule —
+  # CI checks out gdx-proto separately (see gdx-cpp-sdk/.github/workflows/ci.yml).
   # --------------------------------------------------------------------------
   build:
     name: Build prebuilt zip
@@ -73,7 +74,19 @@ jobs:
               libboost-dev libboost-system-dev libssl-dev \
               libprotobuf-dev protobuf-compiler \
               nlohmann-json3-dev \
-              zip unzip
+              zip unzip curl ca-certificates
+
+      - name: Install OpenSSL 3.3 (HPKE requires openssl/hpke.h)
+        run: |
+          if [ ! -f /usr/local/openssl-3.3/include/openssl/hpke.h ]; then
+            curl -sL https://github.com/openssl/openssl/releases/download/openssl-3.3.1/openssl-3.3.1.tar.gz | tar xz
+            cd openssl-3.3.1
+            ./config --prefix=/usr/local/openssl-3.3 --openssldir=/usr/local/openssl-3.3 shared
+            make -j"$(nproc)"
+            sudo make install_sw
+          fi
+          echo "OPENSSL_ROOT_DIR=/usr/local/openssl-3.3" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/local/openssl-3.3/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
       - name: Capture toolchain (for debugging parity failures)
         run: |
@@ -86,7 +99,7 @@ jobs:
             | awk '/^ii/{print $2, $3}'       >> "$GITHUB_STEP_SUMMARY"
           echo '```'                          >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Mint GDX_APP token (scoped to upstream + submodule)
+      - name: Mint GDX_APP token (scoped to upstream + gdx-proto)
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
@@ -118,18 +131,22 @@ jobs:
           path: upstream
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 1
-          submodules: recursive
 
-      - name: Ensure gdx-proto submodule is initialized
-        working-directory: upstream
-        env:
-          TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Clear ignored gdx-proto path
+        run: rm -rf upstream/gdx-proto
+
+      - name: Checkout gdx-proto for upstream build
+        uses: actions/checkout@v4
+        with:
+          repository: gq-godark/gdx-proto
+          ref: feature/godark-chain-v0
+          path: upstream/gdx-proto
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Verify gdx-proto layout
         run: |
-          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
-          git submodule sync --recursive
-          git submodule update --init --recursive --force
-          if [ ! -d gdx-proto/proto ]; then
-            echo "::error::gdx-proto/proto missing after submodule init — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
+          if [ ! -d upstream/gdx-proto/proto ]; then
+            echo "::error::upstream/gdx-proto/proto missing after checkout — ensure GDX_APP has contents:read on gq-godark/gdx-proto"
             exit 1
           fi
 

@@ -2,7 +2,7 @@ name: Auto-bump SDK pin
 
 # Layer 2 listener. Triggered by gdx-cpp-sdk's notify-examples.yml dispatch
 # (event_type=gdx-sdk-changed) or manually via workflow_dispatch.
-# Clones gdx-cpp-sdk at the dispatched SHA (with the gdx-proto submodule),
+# Clones gdx-cpp-sdk at the dispatched SHA and checks out gdx-proto separately,
 # runs scripts/refresh_sdk.sh to rebuild libgodark.a + headers + cmake config
 # from upstream, and opens or refreshes a rolling PR (auto/bump-sdk-pin)
 # against main.
@@ -10,8 +10,8 @@ name: Auto-bump SDK pin
 # Operational requirements:
 #   - apt build deps (cmake, ninja, boost, openssl, protobuf, nlohmann-json) —
 #     refresh_sdk.sh compiles the upstream SDK from source on every run.
-#   - gdx-proto as a recursive submodule on the upstream checkout — the
-#     upstream CMake reads .proto files from there.
+#   - gdx-proto checked out alongside upstream (not a git submodule in
+#     gdx-cpp-sdk) — CMake reads .proto files from upstream/gdx-proto.
 #   - ubuntu-24.04 (pinned to match release.yml's runner) — different toolchains
 #     produce non-identical libgodark.a even from the same source. release.yml's
 #     parity check (byte-for-byte cmp on libgodark.a) would fail if this job
@@ -62,7 +62,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
 
-      - name: Mint App token (upstream + submodule read)
+      - name: Mint App token (upstream + gdx-proto read)
         id: app-token-upstream
         uses: actions/create-github-app-token@v1
         with:
@@ -93,7 +93,7 @@ jobs:
           echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "Vendoring gdx-cpp-sdk@${SHA}"
 
-      - name: Checkout upstream gdx-cpp-sdk at dispatched SHA (with gdx-proto submodule)
+      - name: Checkout upstream gdx-cpp-sdk at dispatched SHA
         uses: actions/checkout@v5
         with:
           repository: gq-godark/gdx-cpp-sdk
@@ -101,7 +101,17 @@ jobs:
           path: upstream
           token: ${{ steps.app-token-upstream.outputs.token }}
           fetch-depth: 1
-          submodules: recursive
+
+      - name: Clear ignored gdx-proto path
+        run: rm -rf upstream/gdx-proto
+
+      - name: Checkout gdx-proto for upstream build
+        uses: actions/checkout@v5
+        with:
+          repository: gq-godark/gdx-proto
+          ref: feature/godark-chain-v0
+          path: upstream/gdx-proto
+          token: ${{ steps.app-token-upstream.outputs.token }}
 
       - name: Install build deps
         # Must match the apt set used by release.yml and the local dev
@@ -112,7 +122,20 @@ jobs:
           sudo apt-get install -y -qq \
               cmake ninja-build \
               libboost-dev libboost-system-dev libssl-dev \
-              libprotobuf-dev protobuf-compiler nlohmann-json3-dev
+              libprotobuf-dev protobuf-compiler nlohmann-json3-dev \
+              curl ca-certificates
+
+      - name: Install OpenSSL 3.3 (HPKE requires openssl/hpke.h)
+        run: |
+          if [ ! -f /usr/local/openssl-3.3/include/openssl/hpke.h ]; then
+            curl -sL https://github.com/openssl/openssl/releases/download/openssl-3.3.1/openssl-3.3.1.tar.gz | tar xz
+            cd openssl-3.3.1
+            ./config --prefix=/usr/local/openssl-3.3 --openssldir=/usr/local/openssl-3.3 shared
+            make -j"$(nproc)"
+            sudo make install_sw
+          fi
+          echo "OPENSSL_ROOT_DIR=/usr/local/openssl-3.3" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/local/openssl-3.3/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
       - name: Refresh vendored sdk/
         env:

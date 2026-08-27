@@ -281,6 +281,10 @@ enum class CancelReason : int {
     FOK_NOT_FILLED = 3,
     EXPIRED        = 4,
     SYSTEM         = 5,
+    ADL            = 6,
+    LIQUIDATED_CANCELED = 7,
+    MARGIN_CANCELED = 8,
+    REDUCE_ONLY    = 9,
 };
 
 inline std::string to_string(CancelReason v) {
@@ -290,6 +294,10 @@ inline std::string to_string(CancelReason v) {
         case CancelReason::FOK_NOT_FILLED: return "FOK_NOT_FILLED";
         case CancelReason::EXPIRED:        return "EXPIRED";
         case CancelReason::SYSTEM:         return "SYSTEM";
+        case CancelReason::ADL:            return "ADL";
+        case CancelReason::LIQUIDATED_CANCELED: return "LIQUIDATED_CANCELED";
+        case CancelReason::MARGIN_CANCELED: return "MARGIN_CANCELED";
+        case CancelReason::REDUCE_ONLY:    return "REDUCE_ONLY";
     }
     throw std::invalid_argument("Unknown CancelReason value");
 }
@@ -300,6 +308,10 @@ inline CancelReason cancel_reason_from_string(std::string_view s) {
     if (s == "FOK_NOT_FILLED") return CancelReason::FOK_NOT_FILLED;
     if (s == "EXPIRED")        return CancelReason::EXPIRED;
     if (s == "SYSTEM")         return CancelReason::SYSTEM;
+    if (s == "ADL")            return CancelReason::ADL;
+    if (s == "LIQUIDATED_CANCELED") return CancelReason::LIQUIDATED_CANCELED;
+    if (s == "MARGIN_CANCELED") return CancelReason::MARGIN_CANCELED;
+    if (s == "REDUCE_ONLY")    return CancelReason::REDUCE_ONLY;
     throw std::invalid_argument("Unknown CancelReason string: " + std::string(s));
 }
 
@@ -310,6 +322,10 @@ inline CancelReason cancel_reason_from_proto(int v) {
         case 3: return CancelReason::FOK_NOT_FILLED;
         case 4: return CancelReason::EXPIRED;
         case 5: return CancelReason::SYSTEM;
+        case 6: return CancelReason::ADL;
+        case 7: return CancelReason::LIQUIDATED_CANCELED;
+        case 8: return CancelReason::MARGIN_CANCELED;
+        case 9: return CancelReason::REDUCE_ONLY;
         default: throw std::invalid_argument("Unknown CancelReason proto value: " + std::to_string(v));
     }
 }

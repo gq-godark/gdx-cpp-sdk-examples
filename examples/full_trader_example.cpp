@@ -125,7 +125,18 @@ int main() {
                   << "  id=" << u.order_id
                   << "  status=" << godark::to_string(u.status)
                   << "  filled=" << u.filled_qty
-                  << "  remaining=" << u.remaining_qty << "\n";
+                  << "  remaining=" << u.remaining_qty;
+        if (u.cancel_reason.has_value()) {
+            std::cout << "  cancel_reason="
+                      << godark::to_string(*u.cancel_reason);
+        }
+        if (u.reduce_only) {
+            std::cout << "  reduce_only=true";
+        }
+        if (u.post_only) {
+            std::cout << "  post_only=true";
+        }
+        std::cout << "\n";
     };
 
     client.on_position_update = [&](const godark::PositionUpdate& u) {

@@ -59,6 +59,7 @@ endif()
 add_library(godark::godark STATIC IMPORTED)
 
 set_target_properties(godark::godark PROPERTIES
+  INTERFACE_COMPILE_DEFINITIONS "GODARK_ENABLE_TEST_PEER=1"
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include;${_IMPORT_PREFIX}/include"
   INTERFACE_LINK_LIBRARIES "Threads::Threads;Boost::system;OpenSSL::SSL;OpenSSL::Crypto;ZLIB::ZLIB;protobuf::libprotobuf;nlohmann_json::nlohmann_json"
 )

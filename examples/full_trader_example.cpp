@@ -185,8 +185,8 @@ int main() {
     client.on_funding_rate_update = [&](const godark::FundingRateUpdate& f) {
         ++funding_count;
         std::cout << "FUND   symbol=" << f.symbol_id
-                  << "  current=" << f.current_rate
-                  << "  predicted=" << f.predicted_rate << "\n";
+                  << "  rate=" << f.funding_rate
+                  << "  last=" << f.last_funding_rate << "\n";
     };
 
     client.on_settlement_update = [&](const godark::SettlementUpdate& s) {
@@ -217,8 +217,8 @@ int main() {
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
               << "  (HPKE session)\n";
 
-    client.subscribe({"orders", "positions"});
-    std::cout << "Subscribed to order + position updates\n";
+    client.subscribe({"orders", "positions", "funding_rate"});
+    std::cout << "Subscribed to order + position + funding updates\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     auto fmt_err = [](const godark::OrderError& e) {
@@ -227,28 +227,11 @@ int main() {
         return out;
     };
 
-    std::cout << "Setting leverage to 1 via GodarkRestClient.update_leverage...\n";
-    if (!cfg.api_key.empty()) {
-        std::cout << "Skipping REST leverage (legacy GODARK_API_KEY; C++ REST client requires key triple)\n";
-    } else try {
-        godark::GodarkRestClient::Config rest_cfg;
-        rest_cfg.api_key_id = cfg.api_key_id;
-        rest_cfg.api_secret = cfg.api_secret;
-        rest_cfg.passphrase = cfg.passphrase;
-        if (!cfg.base_url.empty()) {
-            std::string rest = cfg.base_url;
-            if (rest.rfind("wss://", 0) == 0) rest.replace(0, 6, "https://");
-            else if (rest.rfind("ws://", 0) == 0) rest.replace(0, 5, "http://");
-            const auto pos = rest.find("/ws/v1");
-            if (pos != std::string::npos) rest.erase(pos);
-            rest_cfg.rest_base_url = rest;
-        }
-        godark::GodarkRestClient rest{rest_cfg};
-        rest.connect();
-        auto lev_ack = rest.update_leverage(SYMBOL, 1);
+    std::cout << "Setting leverage to 1 via GodarkClient.update_leverage...\n";
+    try {
+        auto lev_ack = client.update_leverage(SYMBOL, 1);
         std::cout << "update_leverage: success=" << (lev_ack.success ? "true" : "false")
                   << "  order_id=" << lev_ack.order_id << "\n";
-        rest.disconnect();
     } catch (const godark::OrderError& e) {
         std::cerr << "update_leverage rejected: " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {

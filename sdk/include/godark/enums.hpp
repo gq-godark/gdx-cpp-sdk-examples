@@ -285,6 +285,8 @@ enum class CancelReason : int {
     LIQUIDATED_CANCELED = 7,
     MARGIN_CANCELED = 8,
     REDUCE_ONLY    = 9,
+    STP_EXPIRE_TAKER = 10,
+    STP_CANCEL_RESTING = 11,
 };
 
 inline std::string to_string(CancelReason v) {
@@ -298,6 +300,8 @@ inline std::string to_string(CancelReason v) {
         case CancelReason::LIQUIDATED_CANCELED: return "LIQUIDATED_CANCELED";
         case CancelReason::MARGIN_CANCELED: return "MARGIN_CANCELED";
         case CancelReason::REDUCE_ONLY:    return "REDUCE_ONLY";
+        case CancelReason::STP_EXPIRE_TAKER: return "STP_EXPIRE_TAKER";
+        case CancelReason::STP_CANCEL_RESTING: return "STP_CANCEL_RESTING";
     }
     throw std::invalid_argument("Unknown CancelReason value");
 }
@@ -312,6 +316,8 @@ inline CancelReason cancel_reason_from_string(std::string_view s) {
     if (s == "LIQUIDATED_CANCELED") return CancelReason::LIQUIDATED_CANCELED;
     if (s == "MARGIN_CANCELED") return CancelReason::MARGIN_CANCELED;
     if (s == "REDUCE_ONLY")    return CancelReason::REDUCE_ONLY;
+    if (s == "STP_EXPIRE_TAKER") return CancelReason::STP_EXPIRE_TAKER;
+    if (s == "STP_CANCEL_RESTING") return CancelReason::STP_CANCEL_RESTING;
     throw std::invalid_argument("Unknown CancelReason string: " + std::string(s));
 }
 
@@ -326,6 +332,8 @@ inline CancelReason cancel_reason_from_proto(int v) {
         case 7: return CancelReason::LIQUIDATED_CANCELED;
         case 8: return CancelReason::MARGIN_CANCELED;
         case 9: return CancelReason::REDUCE_ONLY;
+        case 10: return CancelReason::STP_EXPIRE_TAKER;
+        case 11: return CancelReason::STP_CANCEL_RESTING;
         default: throw std::invalid_argument("Unknown CancelReason proto value: " + std::to_string(v));
     }
 }

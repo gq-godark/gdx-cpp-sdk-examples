@@ -185,8 +185,8 @@ int main() {
     client.on_funding_rate_update = [&](const godark::FundingRateUpdate& f) {
         ++funding_count;
         std::cout << "FUND   symbol=" << f.symbol_id
-                  << "  current=" << f.current_rate
-                  << "  predicted=" << f.predicted_rate << "\n";
+                  << "  rate=" << f.funding_rate
+                  << "  last=" << f.last_funding_rate << "\n";
     };
 
     client.on_settlement_update = [&](const godark::SettlementUpdate& s) {

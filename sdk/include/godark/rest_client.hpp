@@ -30,6 +30,8 @@ public:
         std::optional<std::string> rest_base_url;
         /// Fallback when JWT omits `user_uuid` (local edge).
         std::optional<std::string> user_uuid;
+        /// Pinned sequencer HPKE public key (hex). Falls back to env when unset.
+        std::optional<std::string> hpke_static_public_key_hex;
         /// Overrides applied after edge fetch (or sole map when [`explicit_symbol_map`]).
         std::unordered_map<std::string, uint64_t> symbol_overrides;
         /// When true, use [`symbol_overrides`] only and skip edge instruments fetch.
@@ -46,6 +48,7 @@ public:
 
     [[nodiscard]] bool is_session_established() const;
     [[nodiscard]] std::optional<std::string> user_uuid() const;
+    [[nodiscard]] std::optional<std::string> token_scope() const;
 
     void connect();
     void disconnect();
@@ -65,6 +68,15 @@ public:
     LeverageSettings get_leverage();
 
     OrderAck update_leverage(const std::string& symbol, uint32_t leverage);
+
+    /// Live open orders via encrypted `POST /api/v1/openOrders`.
+    OpenOrdersSnapshot get_open_orders();
+
+    /// Live positions via encrypted `POST /api/v1/positions`.
+    PositionsSnapshot get_positions();
+
+    /// Live account margin via encrypted `POST /api/v1/account`.
+    AccountMarginUpdate get_account();
 
     /// Plaintext docs envelope `data` object from `GET /api/v1/orders/{id}`.
     nlohmann::json get_order(const std::string& order_id);

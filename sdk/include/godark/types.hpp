@@ -98,16 +98,6 @@ struct BatchModifyAck {
     std::vector<BatchModifyLegResult> results;
 };
 
-/// RPC reply for amend / cancel TP-SL (`NodeResponse::tpsl_ack`).
-struct TpslAck {
-    std::vector<uint8_t> correlation_id;
-    uint64_t parent_order_id = 0;
-    std::optional<std::string> take_profit = std::nullopt;
-    std::optional<std::string> stop_loss = std::nullopt;
-    std::optional<uint32_t> error_code = std::nullopt;
-    std::optional<std::string> reject_text = std::nullopt;
-};
-
 struct OrderUpdate {
     std::string order_id;
     std::string user_uuid;
@@ -233,6 +223,21 @@ struct OpenOrdersSnapshot {
     int64_t correlation_id = 0;
 };
 
+/// Authoritative account-level margin summary (decimal strings).
+struct AccountMarginSummary {
+    std::string total_collateral;
+    std::string position_margin;
+    std::string reserved_order_margin;
+    std::string free_collateral;
+};
+
+/// Account-margin push for a user (`get_account` / subscribe).
+struct AccountMarginUpdate {
+    std::string user_uuid;
+    uint64_t server_timestamp = 0;
+    std::optional<AccountMarginSummary> account;
+};
+
 /// Unified component health report routed via the trading WS.
 struct SystemHealthUpdate {
     std::string component_id;
@@ -249,27 +254,6 @@ struct BalanceUpdate {
     std::string user_uuid;
     uint64_t shielded_balance_raw = 0;
     uint64_t timestamp = 0;
-};
-
-/// Authoritative account-level margin summary (decimal strings).
-struct AccountMarginSummary {
-    std::string total_collateral;
-    std::string position_margin;
-    std::string reserved_order_margin;
-    std::string free_collateral;
-    /// Isolated cash locks (no UPL).
-    std::string isolated_margin;
-    /// Isolated cash + isolated UPL, floored per position.
-    std::string isolated_equity;
-    /// Cross position IM (no order holds).
-    std::string cross_im;
-};
-
-/// Account-margin push / GetAccount snapshot for a user.
-struct AccountMarginUpdate {
-    std::string user_uuid;
-    uint64_t server_timestamp = 0;
-    std::optional<AccountMarginSummary> account = std::nullopt;
 };
 
 /// Margin tier transition / recovery for `(owner, symbol_id)`.
@@ -290,11 +274,10 @@ struct MarginAlert {
 /// Funding rate tick for a symbol.
 struct FundingRateUpdate {
     uint64_t symbol_id = 0;
-    /// In-progress hourly rate (TWAP / 8), decimal fraction.
-    std::string funding_rate;
+    std::string current_rate;
+    std::string predicted_rate;
+    uint64_t next_funding_time = 0;
     uint64_t timestamp = 0;
-    /// Last applied hourly rate, decimal fraction.
-    std::string last_funding_rate;
 };
 
 /// Status of a settlement batch tx.

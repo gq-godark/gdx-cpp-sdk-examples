@@ -1,5 +1,6 @@
 #pragma once
 
+#include <godark/client.hpp>
 #include <godark/enums.hpp>
 #include <godark/errors.hpp>
 #include <godark/types.hpp>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 #include <nlohmann/json.hpp>
@@ -16,6 +18,11 @@
 namespace godark {
 
 class RestTransport;
+
+/// Infer [`Environment`] from a REST base URL host (for HPKE pin baking).
+/// localhost/127.0.0.1 → Localnet; "devnet" or 18.143.165.149 → Devnet;
+/// godark-dex.com (and unknown hosts) → Testnet.
+[[nodiscard]] GODARK_API Environment infer_environment_from_rest_url(std::string_view rest_base);
 
 /// REST-only trading client (AES-GCM encrypted orders via `/api/v1/*`).
 /// Mirrors the Phase-B Python/Rust/JS SDKs: encrypt/decrypt locally; edge forwards ciphertext only.
@@ -30,7 +37,9 @@ public:
         std::optional<std::string> rest_base_url;
         /// Fallback when JWT omits `user_uuid` (local edge).
         std::optional<std::string> user_uuid;
-        /// Pinned sequencer HPKE public key (hex). Falls back to env when unset.
+        /// Pinned sequencer HPKE public key (hex). Resolves as: this field >
+        /// `GDX_HPKE_STATIC_PUBLIC_KEY` (and aliases) > baked pin inferred from
+        /// [`rest_base_url`] (Testnet/Devnet); Localnet has no baked pin.
         std::optional<std::string> hpke_static_public_key_hex;
         /// Overrides applied after edge fetch (or sole map when [`explicit_symbol_map`]).
         std::unordered_map<std::string, uint64_t> symbol_overrides;

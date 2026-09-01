@@ -30,6 +30,9 @@ double live_price() {
     }
     return 78000.0;
 }
+double rest_limit_price() {
+    return live_price() - 5000.0;
+}
 }  // namespace
 
 int main() {
@@ -72,9 +75,9 @@ int main() {
             std::cout << "account total_collateral=" << account.account->total_collateral << "\n";
         }
 
-        const double price = live_price();
+        const double price = rest_limit_price();
         auto ack = client.place_order("BTC-USDC-PERP", godark::Side::BUY, godark::OrderType::LIMIT,
-            0.001, price, godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
+            0.01, price, godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
             std::string("sdk-cpp-rest-demo"));
         std::cout << "placed order_id=" << ack.order_id << " success=" << std::boolalpha << ack.success
                   << "\n";

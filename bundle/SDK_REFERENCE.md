@@ -38,7 +38,7 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
+- `GDX_HPKE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.
@@ -63,7 +63,7 @@ Use `.env.example` as the template for your local `.env`.
 |--------|-----------|---------|
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
-| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
+| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?, new_trigger_price?)` | Modify price, quantity, and/or stop trigger |
 | `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders |
 
@@ -151,7 +151,7 @@ Includes position lifecycle fields such as:
 **Header:** `<godark/enums.hpp>`
 
 - `Side`: `BUY`, `SELL`
-- `OrderType`: `MARKET`, `LIMIT`, `PEG_TO_MID`, `PEG_TO_BID`, `PEG_TO_ASK`
+- `OrderType`: `MARKET`, `LIMIT`, `PEG`, `STOP_MARKET`, `STOP_LIMIT`
 - `TimeInForce`: `GTC`, `IOC`, `FOK`, `GTD`
 - `OrderStatus`: `NEW`, `PARTIALLY_FILLED`, `FILLED`, `CANCELLED`, `REJECTED`
 - `OrderUpdateType`: `OPEN`, `FILLED`, `PARTIALLY_FILLED`, `CANCELLED`, `REJECTED`, `MODIFIED`, `CANCEL_REJECTED`, `MODIFY_REJECTED`

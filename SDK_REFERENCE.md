@@ -46,7 +46,7 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
-- `GDX_NOISE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_NOISE_STATIC_PUBKEY`, `GODARK_NOISE_STATIC_PUBLIC_KEY`
+- `GDX_HPKE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
 Use `.env.example` as the template for your local `.env`.
@@ -115,7 +115,7 @@ consumer site.
 | `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
 | `update_leverage` | `OrderAck update_leverage(symbol, leverage)` | Set per-symbol account leverage |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
-| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?)` | Modify order |
+| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?, new_trigger_price?)` | Modify price, quantity, and/or stop trigger |
 | `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders in one request |
 | `batch_modify` | `BatchModifyAck batch_modify(symbol, legs)` | Amend multiple resting orders in one request |
@@ -250,16 +250,18 @@ all open positions for the authenticated user. `rows` holds one
 **Header:** `<godark/enums.hpp>`
 
 - `Side`: `BUY`, `SELL`
-- `OrderType`: `MARKET`, `LIMIT`, `PEG_TO_MID`, `PEG_TO_BID`, `PEG_TO_ASK`
+- `OrderType`: `MARKET`, `LIMIT`, `PEG`, `STOP_MARKET`, `STOP_LIMIT`
 - `TimeInForce`: `GTC`, `IOC`, `FOK`, `GTD`
 - `OrderStatus`: `NEW`, `PARTIALLY_FILLED`, `FILLED`, `CANCELLED`, `REJECTED`
 - `OrderUpdateType`: `OPEN`, `FILLED`, `PARTIALLY_FILLED`, `CANCELLED`, `REJECTED`, `MODIFIED`, `CANCEL_REJECTED`, `MODIFY_REJECTED`
 - `PositionUpdateType`: `SNAPSHOT`, `OPEN`, `INCREASE`, `DECREASE`, `CLOSE`, `FUNDING_APPLIED`
-- `CancelReason`: `USER_REQUESTED`, `IOC_REMAINDER`, `FOK_NOT_FILLED`, `EXPIRED`, `SYSTEM`
+- `CancelReason`: `USER_REQUESTED`, `IOC_REMAINDER`, `FOK_NOT_FILLED`, `EXPIRED`, `SYSTEM`, `ADL`, `LIQUIDATED_CANCELED`, `MARGIN_CANCELED`, `REDUCE_ONLY`, `STP_EXPIRE_TAKER`, `STP_CANCEL_RESTING`
 - `PositionsSnapshotSource`: `Unspecified`, `Initial`, `Periodic`, `Event`
 - `SettlementBatchStatus`: `Unspecified`, `Submitted`, `Confirmed`, `Failed`
 
 All enums provide string conversion helpers via `to_string(...)`.
+
+`PlaceOrderOptions` on `place_order` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, and `stop_loss_price`. `PEG` pegs to the Pyth oracle mark.
 
 Note: the SDK enum includes additional order types for compatibility, but this
 MM distribution supports placing only `MARKET` and `LIMIT` orders.

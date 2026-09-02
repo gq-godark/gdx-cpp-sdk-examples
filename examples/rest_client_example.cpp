@@ -1,7 +1,7 @@
 // GoDark C++ SDK — minimal GodarkRestClient demo.
 //
-// Auth + account reads. Encrypted place/cancel/modify/update_leverage require
-// GodarkClient (WebSocket / HPKE); see quickstart / full_trader_example.
+// Auth + account reads. For encrypted place/modify/cancel over REST (one-shot HPKE),
+// see full_trader_rest.
 //
 //   ./rest_client_example
 //
@@ -44,7 +44,7 @@ int main() {
         } catch (const std::exception& e) {
             std::cout << "connect skipped: " << e.what() << "\n";
             std::cout << "REST example covers auth wiring; encrypted reads may require a supported REST host.\n";
-            std::cout << "Encrypted trading requires GodarkClient over WebSocket (HPKE).\n";
+            std::cout << "For REST trading (place/modify/cancel), see full_trader_rest.\n";
             return 0;
         }
 
@@ -59,6 +59,7 @@ int main() {
         try {
             auto lev = client.get_leverage();
             std::cout << "leverage settings: " << lev.settings.size() << " entries\n";
+            std::cout << "  (WS push: on_leverage_settings in full_trader_example.cpp)\n";
             for (std::size_t i = 0; i < lev.settings.size() && i < 5; ++i) {
                 const auto& row = lev.settings[i];
                 std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage
@@ -77,7 +78,7 @@ int main() {
         }
 
         std::cout << "REST reads succeeded.\n";
-        std::cout << "Encrypted trading requires GodarkClient over WebSocket (HPKE).\n";
+        std::cout << "For REST trading (place/modify/cancel), see full_trader_rest.\n";
         client.disconnect();
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

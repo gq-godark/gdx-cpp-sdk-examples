@@ -75,10 +75,10 @@ int main() {
     }
     if (std::string pin = godark_examples::env_first(
             {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
-             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBKEY"});
         !pin.empty()) {
-        cfg.noise_static_public_key_hex = std::move(pin);
+        cfg.hpke_static_public_key_hex = std::move(pin);
     }
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
@@ -112,6 +112,7 @@ int main() {
     int margin_count = 0;
     int funding_count = 0;
     int settle_count = 0;
+    int leverage_count = 0;
     int error_count = 0;
 
     // BTC-USDC-PERP is symbol_id 1; capture its live mark from snapshots so the
@@ -125,7 +126,18 @@ int main() {
                   << "  id=" << u.order_id
                   << "  status=" << godark::to_string(u.status)
                   << "  filled=" << u.filled_qty
-                  << "  remaining=" << u.remaining_qty << "\n";
+                  << "  remaining=" << u.remaining_qty;
+        if (u.cancel_reason.has_value()) {
+            std::cout << "  cancel_reason="
+                      << godark::to_string(*u.cancel_reason);
+        }
+        if (u.reduce_only) {
+            std::cout << "  reduce_only=true";
+        }
+        if (u.post_only) {
+            std::cout << "  post_only=true";
+        }
+        std::cout << "\n";
     };
 
     client.on_position_update = [&](const godark::PositionUpdate& u) {
@@ -174,8 +186,8 @@ int main() {
     client.on_funding_rate_update = [&](const godark::FundingRateUpdate& f) {
         ++funding_count;
         std::cout << "FUND   symbol=" << f.symbol_id
-                  << "  current=" << f.current_rate
-                  << "  predicted=" << f.predicted_rate << "\n";
+                  << "  rate=" << f.funding_rate
+                  << "  last=" << f.last_funding_rate << "\n";
     };
 
     client.on_settlement_update = [&](const godark::SettlementUpdate& s) {
@@ -183,6 +195,15 @@ int main() {
         std::cout << "SETTLE batch=" << s.batch_id
                   << "  status=" << static_cast<int>(s.status)
                   << "  users=" << s.affected_user_uuids.size() << "\n";
+    };
+
+    client.on_leverage_settings = [&](const godark::LeverageSettings& ls) {
+        ++leverage_count;
+        std::cout << "LEVERAGE settings=" << ls.settings.size() << "\n";
+        for (std::size_t i = 0; i < ls.settings.size() && i < 5; ++i) {
+            const auto& row = ls.settings[i];
+            std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage << "\n";
+        }
     };
 
     client.on_reconnect = []() {
@@ -206,8 +227,8 @@ int main() {
     std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
               << "  (HPKE session)\n";
 
-    client.subscribe({"orders", "positions"});
-    std::cout << "Subscribed to order + position updates\n";
+    client.subscribe({"orders", "positions", "funding_rate"});
+    std::cout << "Subscribed to order + position + funding updates\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     auto fmt_err = [](const godark::OrderError& e) {
@@ -216,28 +237,11 @@ int main() {
         return out;
     };
 
-    std::cout << "Setting leverage to 1 via GodarkRestClient.update_leverage...\n";
-    if (!cfg.api_key.empty()) {
-        std::cout << "Skipping REST leverage (legacy GODARK_API_KEY; C++ REST client requires key triple)\n";
-    } else try {
-        godark::GodarkRestClient::Config rest_cfg;
-        rest_cfg.api_key_id = cfg.api_key_id;
-        rest_cfg.api_secret = cfg.api_secret;
-        rest_cfg.passphrase = cfg.passphrase;
-        if (!cfg.base_url.empty()) {
-            std::string rest = cfg.base_url;
-            if (rest.rfind("wss://", 0) == 0) rest.replace(0, 6, "https://");
-            else if (rest.rfind("ws://", 0) == 0) rest.replace(0, 5, "http://");
-            const auto pos = rest.find("/ws/v1");
-            if (pos != std::string::npos) rest.erase(pos);
-            rest_cfg.rest_base_url = rest;
-        }
-        godark::GodarkRestClient rest{rest_cfg};
-        rest.connect();
-        auto lev_ack = rest.update_leverage(SYMBOL, 1);
+    std::cout << "Setting leverage to 1 via GodarkClient.update_leverage...\n";
+    try {
+        auto lev_ack = client.update_leverage(SYMBOL, 1);
         std::cout << "update_leverage: success=" << (lev_ack.success ? "true" : "false")
                   << "  order_id=" << lev_ack.order_id << "\n";
-        rest.disconnect();
     } catch (const godark::OrderError& e) {
         std::cerr << "update_leverage rejected: " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {
@@ -284,7 +288,9 @@ int main() {
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            0.05, sell_px);
+            0.05, sell_px, godark::TimeInForce::GTC,
+            godark::PlaceOrderConfirmation::Book,
+            godark::PlaceOrderOptions{.post_only = true});
         std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -326,7 +332,7 @@ int main() {
             {"BUY", round1(base * (1 - 0.006)), 0.02},
             {"BUY", round1(base * (1 - 0.009)), 0.02},
         };
-        auto mq = client.mass_quote(SYMBOL, ladder, 1, std::nullopt);
+        auto mq = client.mass_quote(SYMBOL, ladder, std::nullopt);
         std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
                   << "  sequence=" << mq.sequence
                   << "  legs=" << mq.results.size() << "\n";
@@ -349,18 +355,12 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     if (!resting_ids.empty()) {
-        std::cout << "Batch-cancelling " << resting_ids.size()
-                  << " ladder orders (cleanup)...\n";
+        std::cout << "cancel_all_orders (cleanup ladder)...\n";
         try {
-            auto bc = client.batch_cancel(SYMBOL, resting_ids);
-            for (const auto& r : bc.results) {
-                std::cout << "  cancel id=" << r.order_id
-                          << ": cancelled=" << (r.cancelled ? "true" : "false")
-                          << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
-                          << "\n";
-            }
+            auto ca = client.cancel_all_orders(SYMBOL);
+            std::cout << "  cancel_all: count=" << ca.count << "\n";
         } catch (const godark::Error& e) {
-            std::cerr << "Batch cancel rejected: " << e.what() << "\n";
+            std::cerr << "cancel_all rejected: " << e.what() << "\n";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
@@ -371,7 +371,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.001}}, 1, std::optional<bool>{true});
+            SYMBOL, {{"BUY", cross_px, 0.001}}, std::optional<bool>{true});
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
@@ -385,7 +385,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.003}}, 1, std::optional<bool>{false});
+            SYMBOL, {{"BUY", cross_px, 0.003}}, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
@@ -437,6 +437,7 @@ int main() {
               << "  Margin alerts received:                " << margin_count << "\n"
               << "  Funding rate updates received:         " << funding_count << "\n"
               << "  Settlement updates received:           " << settle_count << "\n"
+              << "  Leverage settings pushes received:     " << leverage_count << "\n"
               << "  Non-fatal errors received:             " << error_count << "\n"
               << sep << "\n";
 

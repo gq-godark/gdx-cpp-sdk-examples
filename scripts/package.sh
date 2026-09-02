@@ -82,6 +82,7 @@ for required in \
     examples/CMakeLists.txt \
     examples/quickstart.cpp \
     examples/full_trader_example.cpp \
+    examples/full_trader_rest.cpp \
     examples/rest_client_example.cpp \
     examples/dotenv.hpp; do
   if [[ ! -f "${REPO_ROOT}/${required}" ]]; then
@@ -296,6 +297,7 @@ cp "$REPO_ROOT/bundle/SDK_REFERENCE.md"  "$DEST/SDK_REFERENCE.md"
 cp "$REPO_ROOT/examples/CMakeLists.txt"           "$DEST/examples/"
 cp "$REPO_ROOT/examples/quickstart.cpp"           "$DEST/examples/"
 cp "$REPO_ROOT/examples/full_trader_example.cpp"  "$DEST/examples/"
+cp "$REPO_ROOT/examples/full_trader_rest.cpp"     "$DEST/examples/"
 cp "$REPO_ROOT/examples/rest_client_example.cpp"  "$DEST/examples/"
 cp "$REPO_ROOT/examples/dotenv.hpp"               "$DEST/examples/"
 
@@ -343,6 +345,7 @@ for required in \
     "${DIST_NAME}/examples/CMakeLists\\.txt" \
     "${DIST_NAME}/examples/quickstart\\.cpp" \
     "${DIST_NAME}/examples/full_trader_example\\.cpp" \
+    "${DIST_NAME}/examples/full_trader_rest\\.cpp" \
     "${DIST_NAME}/examples/dotenv\\.hpp" \
     "${DIST_NAME}/sdk/include/godark/godark\\.hpp" \
     "${DIST_NAME}/sdk/include/godark/client\\.hpp" \

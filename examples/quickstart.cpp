@@ -4,7 +4,7 @@
 // This MM distribution supports MARKET and LIMIT order placement only.
 //
 // GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
-// Optional: GODARK_EDGE_URL / GDX_HPKE_STATIC_PUBLIC_KEY (legacy GDX_NOISE_* accepted)
+// Optional: GODARK_EDGE_URL / GDX_HPKE_STATIC_PUBLIC_KEY
 
 #include <chrono>
 #include <cmath>
@@ -59,10 +59,10 @@ int main() {
     config.environment = godark::Environment::Testnet;
     if (std::string pin = godark_examples::env_first(
             {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
-             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBKEY"});
         !pin.empty()) {
-        config.noise_static_public_key_hex = std::move(pin);
+        config.hpke_static_public_key_hex = std::move(pin);
     }
     if (!url_env.empty()) config.base_url = url_env;
 
@@ -88,15 +88,18 @@ int main() {
                 godark::Side::SELL,
                 godark::OrderType::LIMIT,
                 0.01,
-                sell_px);
+                sell_px,
+                godark::TimeInForce::GTC,
+                godark::PlaceOrderConfirmation::Book,
+                godark::PlaceOrderOptions{.post_only = true});
             std::cout << "Place OK -- order_id=" << ack.order_id
                       << " (limit SELL @ " << sell_px << ", mark=" << mark << ")\n";
 
             // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-            auto cancel = client.cancel_order(ack.order_id, symbol);
-            std::cout << "Cancel OK -- order_id=" << cancel.order_id << "\n";
+            auto cancel = client.cancel_all_orders(symbol);
+            std::cout << "cancel_all OK -- count=" << cancel.count << "\n";
         } catch (const godark::OrderError& e) {
             std::cerr << "Order rejected: " << e.what();
             if (e.error_code) std::cerr << " [" << *e.error_code << "]";

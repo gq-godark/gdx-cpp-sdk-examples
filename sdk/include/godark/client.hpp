@@ -28,30 +28,30 @@ GODARK_API std::map<std::string, uint64_t> load_default_symbol_map();
 inline constexpr const char* kDefaultTestnetEdgeBaseUrl = "wss://api.godark-dex.com";
 
 /// Default edge base URL (host only) for public Devnet.
-inline constexpr const char* kDefaultDevnetEdgeBaseUrl = "ws://18.143.165.149:13300";
+inline constexpr const char* kDefaultDevnetEdgeBaseUrl = "wss://api.devnet.godark-dex.com";
 
-/// Sequencer Noise XK static public key for public testnet (64 hex).
+/// Sequencer HPKE static public key for public testnet (64 hex).
 /// This is a public pin, not a user secret.
-inline constexpr const char* kTestnetNoiseStaticPublicKeyHex =
+inline constexpr const char* kTestnetHpkeStaticPublicKeyHex =
     "a9fdd7f26c0de36d82811e9fe1df2509960cd5b25eef037355e209b9222bea7d";
 
-/// Sequencer Noise XK static public key for public Devnet (64 hex).
+/// Sequencer HPKE static public key for public Devnet (64 hex).
 /// This is a public pin, not a user secret.
-inline constexpr const char* kDevnetNoiseStaticPublicKeyHex =
+inline constexpr const char* kDevnetHpkeStaticPublicKeyHex =
     "a6807e2f6cd04b54cc19be2fd4faea2a1239f1e2896912d91222678ab54cdd45";
 
 /// Named deployment target. Selects the default edge URL and, when known,
-/// a baked-in sequencer Noise XK public key pin.
+/// a baked-in sequencer HPKE public key pin.
 ///
-/// Explicit `ClientConfig::base_url` / `noise_static_public_key_hex` and the
+/// Explicit `ClientConfig::base_url` / `hpke_static_public_key_hex` and the
 /// corresponding environment variables still win over these presets.
 enum class Environment {
-    /// Public testnet (`wss://api.godark-dex.com`) with the published Noise pin.
+    /// Public testnet (`wss://api.godark-dex.com`) with the published HPKE pin.
     Testnet,
-    /// Public Devnet (`ws://18.143.165.149:13300`) with its own Noise pin.
+    /// Public Devnet (`wss://api.devnet.godark-dex.com`) with its own HPKE pin.
     Devnet,
-    /// Local edge (`ws://127.0.0.1:4000`). No baked-in Noise pin — set via
-    /// `noise_static_public_key_hex` or `GODARK_NOISE_STATIC_PUBLIC_KEY`.
+    /// Local edge (`ws://127.0.0.1:4000`). No baked-in HPKE pin — set via
+    /// `hpke_static_public_key_hex` or `GODARK_HPKE_STATIC_PUBLIC_KEY`.
     Localnet,
 };
 
@@ -68,15 +68,15 @@ enum class Environment {
     return kDefaultTestnetEdgeBaseUrl;
 }
 
-/// Baked-in sequencer Noise XK static public key (64 hex), or `nullptr` when
+/// Baked-in sequencer HPKE static public key (64 hex), or `nullptr` when
 /// the environment has none (Localnet).
-[[nodiscard]] inline constexpr const char* environment_noise_static_public_key_hex(
+[[nodiscard]] inline constexpr const char* environment_hpke_static_public_key_hex(
     Environment environment) noexcept {
     switch (environment) {
         case Environment::Testnet:
-            return kTestnetNoiseStaticPublicKeyHex;
+            return kTestnetHpkeStaticPublicKeyHex;
         case Environment::Devnet:
-            return kDevnetNoiseStaticPublicKeyHex;
+            return kDevnetHpkeStaticPublicKeyHex;
         case Environment::Localnet:
             return nullptr;
     }
@@ -89,9 +89,9 @@ GODARK_API std::string resolve_edge_base_url(
     std::string_view explicit_url,
     Environment environment = Environment::Testnet);
 
-/// Resolve Noise XK pin: non-empty explicit > env vars >
+/// Resolve HPKE pin: non-empty explicit > env vars >
 /// baked-in environment pin (empty when Localnet and unset).
-GODARK_API std::string resolve_noise_static_public_key_hex(
+GODARK_API std::string resolve_hpke_static_public_key_hex(
     std::string_view explicit_hex,
     Environment environment = Environment::Testnet);
 
@@ -105,7 +105,7 @@ struct TransportConfig {
     int connect_timeout_sec = 30;
     /// How long to wait for a command (place/cancel/modify) response in seconds.
     int command_timeout_sec = 30;
-    /// How long to wait for each Noise XK handshake reply from the edge,
+    /// How long to wait for each HPKE setup reply from the edge,
     /// in seconds. Matches Python (`client.py:475`), JS (`client.ts:489`),
     /// and Rust (`client.rs:27`) at 10 s. Older releases hardcoded 5 s,
     /// which flaked on contended localnet clusters where the sequencer was
@@ -129,7 +129,7 @@ struct ClientConfig {
     /// Standalone API key (sent as-is). Use either api_key OR api_key_id+api_secret+passphrase.
     std::string api_key;
     /// Named deployment. Defaults to [`Environment::Testnet`], which supplies
-    /// the public testnet edge URL and Noise XK pin when those are not set
+    /// the public testnet edge URL and HPKE pin when those are not set
     /// explicitly or via environment variables. Use [`Environment::Devnet`]
     /// for the Devnet edge/pin, or [`Environment::Localnet`] for a local edge.
     Environment environment = Environment::Testnet;
@@ -137,17 +137,17 @@ struct ClientConfig {
     /// canonical endpoint per the public docs). Legacy `/ws` suffixes are
     /// upgraded transparently. Empty (default) resolves as: this field >
     /// `GODARK_EDGE_URL` / `GDX_EDGE_URL` > [`environment`] preset
-    /// (testnet `wss://api.godark-dex.com`, Devnet `ws://18.143.165.149:13300`;
+    /// (testnet `wss://api.godark-dex.com`, Devnet `wss://api.devnet.godark-dex.com`;
     /// no public mainnet today).
     std::string base_url;
     /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
     /// then to the auth response. Required for local edge instances that omit it.
     std::string user_uuid;
-    /// 64-hex-character pinned Noise XK sequencer static public key. Empty
-    /// resolves as: this field > `GODARK_NOISE_STATIC_PUBLIC_KEY` (aliases
-    /// `GDX_NOISE_STATIC_PUBLIC_KEY`, `GDX_NOISE_STATIC_PUBKEY`) >
+    /// 64-hex-character pinned HPKE sequencer static public key. Empty
+    /// resolves as: this field > `GODARK_HPKE_STATIC_PUBLIC_KEY` (aliases
+    /// `GDX_HPKE_STATIC_PUBLIC_KEY`, `GDX_HPKE_STATIC_PUBKEY`) >
     /// baked-in pin from [`environment`] (Testnet/Devnet only).
-    std::string noise_static_public_key_hex;
+    std::string hpke_static_public_key_hex;
     /// When true (default), automatic reconnect with backoff after transport disconnect.
     bool auto_reconnect = true;
     /// Bounded buffer size for order/position update queues (drop-oldest when full).
@@ -165,7 +165,7 @@ struct ClientConfig {
 ///
 /// Encrypted order commands (place/cancel/modify/batch) are multiplexed by
 /// correlation ID on the client: multiple may be in flight on one session.
-/// Cleartext transport commands (subscribe, auth, noise handshake) remain
+/// Cleartext transport commands (subscribe, auth, HPKE setup) remain
 /// single-flight on the transport pending-command slot.
 class GODARK_API GodarkClient {
 public:
@@ -211,13 +211,15 @@ public:
         double quantity,
         std::optional<double> price,
         TimeInForce tif,
-        PlaceOrderConfirmation confirmation);
+        PlaceOrderConfirmation confirmation,
+        const PlaceOrderOptions& options = {});
 
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,
                           const std::string& symbol,
                           std::optional<double> new_price = std::nullopt,
-                          std::optional<double> new_quantity = std::nullopt);
+                          std::optional<double> new_quantity = std::nullopt,
+                          std::optional<double> new_trigger_price = std::nullopt);
 
     /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
     /// legs), fused into one MPC round. Per-symbol leverage is account state;
@@ -231,9 +233,32 @@ public:
                             const std::vector<MassQuoteLegInput>& legs,
                             std::optional<bool> post_only = std::nullopt);
 
-    /// Set per-symbol account leverage (Noise XK WebSocket). Place/mass-quote
+    /// Set per-symbol account leverage (HPKE WebSocket). Place/mass-quote
     /// inherit this setting server-side.
     OrderAck update_leverage(const std::string& symbol, uint32_t leverage);
+
+    /// Cancel all open orders. When `symbol` is empty, cancels across every market.
+    CountAck cancel_all_orders(const std::optional<std::string>& symbol = std::nullopt);
+
+    /// Close all positions at market (reduce-only IOC). Scoped to `symbol` when set.
+    CountAck close_all(const std::optional<std::string>& symbol = std::nullopt);
+
+    /// Reverse the open position on `symbol` (flatten + open opposite side).
+    CountAck reverse_position(const std::string& symbol);
+
+    /// Amend / attach TP-SL on a resting order or open position.
+    TpslAck amend_tpsl(
+        const std::string& symbol,
+        const std::string& order_id,
+        std::optional<double> take_profit_price = std::nullopt,
+        std::optional<double> stop_loss_price = std::nullopt,
+        std::optional<Side> position_side = std::nullopt);
+
+    /// Cancel TP/SL without cancelling the parent entry or flattening the position.
+    TpslAck cancel_tpsl(
+        const std::string& symbol,
+        const std::string& order_id,
+        std::optional<Side> position_side = std::nullopt);
 
     /// Cancel multiple resting orders on one symbol in a single fanned-out
     /// request (up to 20 ids; zero online MPC rounds). An id that is not resting

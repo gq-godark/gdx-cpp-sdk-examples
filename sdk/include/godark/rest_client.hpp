@@ -20,7 +20,7 @@ namespace godark {
 class RestTransport;
 
 /// Infer [`Environment`] from a REST base URL host (for HPKE pin baking).
-/// localhost/127.0.0.1 → Localnet; "devnet" or 18.143.165.149 → Devnet;
+/// localhost/127.0.0.1 → Localnet; "devnet" → Devnet;
 /// godark-dex.com (and unknown hosts) → Testnet.
 [[nodiscard]] GODARK_API Environment infer_environment_from_rest_url(std::string_view rest_base);
 
@@ -72,7 +72,8 @@ public:
     OrderAck cancel_order_by_client_id(const std::string& client_order_id, const std::string& symbol);
 
     OrderAck modify_order(const std::string& order_id, const std::string& symbol,
-        std::optional<double> new_price, std::optional<double> new_quantity);
+        std::optional<double> new_price, std::optional<double> new_quantity,
+        std::optional<double> new_trigger_price = std::nullopt);
 
     LeverageSettings get_leverage();
 

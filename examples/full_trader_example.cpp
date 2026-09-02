@@ -75,10 +75,10 @@ int main() {
     }
     if (std::string pin = godark_examples::env_first(
             {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
-             "GDX_HPKE_STATIC_PUBKEY", "GODARK_NOISE_STATIC_PUBLIC_KEY",
-             "GDX_NOISE_STATIC_PUBLIC_KEY", "GDX_NOISE_STATIC_PUBKEY"});
+             "GDX_HPKE_STATIC_PUBKEY", "GODARK_HPKE_STATIC_PUBLIC_KEY",
+             "GDX_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBKEY"});
         !pin.empty()) {
-        cfg.noise_static_public_key_hex = std::move(pin);
+        cfg.hpke_static_public_key_hex = std::move(pin);
     }
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
@@ -112,6 +112,7 @@ int main() {
     int margin_count = 0;
     int funding_count = 0;
     int settle_count = 0;
+    int leverage_count = 0;
     int error_count = 0;
 
     // BTC-USDC-PERP is symbol_id 1; capture its live mark from snapshots so the
@@ -196,6 +197,15 @@ int main() {
                   << "  users=" << s.affected_user_uuids.size() << "\n";
     };
 
+    client.on_leverage_settings = [&](const godark::LeverageSettings& ls) {
+        ++leverage_count;
+        std::cout << "LEVERAGE settings=" << ls.settings.size() << "\n";
+        for (std::size_t i = 0; i < ls.settings.size() && i < 5; ++i) {
+            const auto& row = ls.settings[i];
+            std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage << "\n";
+        }
+    };
+
     client.on_reconnect = []() {
         std::cout << "RECONNECTED -- channels restored automatically\n";
     };
@@ -278,7 +288,9 @@ int main() {
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            0.05, sell_px);
+            0.05, sell_px, godark::TimeInForce::GTC,
+            godark::PlaceOrderConfirmation::Book,
+            godark::PlaceOrderOptions{.post_only = true});
         std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -343,18 +355,12 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     if (!resting_ids.empty()) {
-        std::cout << "Batch-cancelling " << resting_ids.size()
-                  << " ladder orders (cleanup)...\n";
+        std::cout << "cancel_all_orders (cleanup ladder)...\n";
         try {
-            auto bc = client.batch_cancel(SYMBOL, resting_ids);
-            for (const auto& r : bc.results) {
-                std::cout << "  cancel id=" << r.order_id
-                          << ": cancelled=" << (r.cancelled ? "true" : "false")
-                          << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
-                          << "\n";
-            }
+            auto ca = client.cancel_all_orders(SYMBOL);
+            std::cout << "  cancel_all: count=" << ca.count << "\n";
         } catch (const godark::Error& e) {
-            std::cerr << "Batch cancel rejected: " << e.what() << "\n";
+            std::cerr << "cancel_all rejected: " << e.what() << "\n";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
@@ -431,6 +437,7 @@ int main() {
               << "  Margin alerts received:                " << margin_count << "\n"
               << "  Funding rate updates received:         " << funding_count << "\n"
               << "  Settlement updates received:           " << settle_count << "\n"
+              << "  Leverage settings pushes received:     " << leverage_count << "\n"
               << "  Non-fatal errors received:             " << error_count << "\n"
               << sep << "\n";
 

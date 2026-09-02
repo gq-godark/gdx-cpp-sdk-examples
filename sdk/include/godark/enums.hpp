@@ -41,30 +41,30 @@ inline int to_proto(Side v) { return static_cast<int>(v); }
 // ----- OrderType -----
 
 enum class OrderType : int {
-    MARKET     = 1,
-    LIMIT      = 2,
-    PEG_TO_MID = 3,
-    PEG_TO_BID = 4,
-    PEG_TO_ASK = 5,
+    MARKET      = 1,
+    LIMIT       = 2,
+    PEG         = 3,
+    STOP_MARKET = 4,
+    STOP_LIMIT  = 5,
 };
 
 inline std::string to_string(OrderType v) {
     switch (v) {
-        case OrderType::MARKET:     return "MARKET";
-        case OrderType::LIMIT:      return "LIMIT";
-        case OrderType::PEG_TO_MID: return "PEG_TO_MID";
-        case OrderType::PEG_TO_BID: return "PEG_TO_BID";
-        case OrderType::PEG_TO_ASK: return "PEG_TO_ASK";
+        case OrderType::MARKET:      return "MARKET";
+        case OrderType::LIMIT:       return "LIMIT";
+        case OrderType::PEG:         return "PEG";
+        case OrderType::STOP_MARKET: return "STOP_MARKET";
+        case OrderType::STOP_LIMIT:  return "STOP_LIMIT";
     }
     throw std::invalid_argument("Unknown OrderType value");
 }
 
 inline OrderType order_type_from_string(std::string_view s) {
-    if (s == "MARKET")     return OrderType::MARKET;
-    if (s == "LIMIT")      return OrderType::LIMIT;
-    if (s == "PEG_TO_MID") return OrderType::PEG_TO_MID;
-    if (s == "PEG_TO_BID") return OrderType::PEG_TO_BID;
-    if (s == "PEG_TO_ASK") return OrderType::PEG_TO_ASK;
+    if (s == "MARKET")      return OrderType::MARKET;
+    if (s == "LIMIT")       return OrderType::LIMIT;
+    if (s == "PEG")         return OrderType::PEG;
+    if (s == "STOP_MARKET") return OrderType::STOP_MARKET;
+    if (s == "STOP_LIMIT")  return OrderType::STOP_LIMIT;
     throw std::invalid_argument("Unknown OrderType string: " + std::string(s));
 }
 
@@ -72,9 +72,9 @@ inline OrderType order_type_from_proto(int v) {
     switch (v) {
         case 1: return OrderType::MARKET;
         case 2: return OrderType::LIMIT;
-        case 3: return OrderType::PEG_TO_MID;
-        case 4: return OrderType::PEG_TO_BID;
-        case 5: return OrderType::PEG_TO_ASK;
+        case 3: return OrderType::PEG;
+        case 4: return OrderType::STOP_MARKET;
+        case 5: return OrderType::STOP_LIMIT;
         default: throw std::invalid_argument("Unknown OrderType proto value: " + std::to_string(v));
     }
 }
@@ -119,6 +119,27 @@ inline TimeInForce time_in_force_from_proto(int v) {
 }
 
 inline int to_proto(TimeInForce v) { return static_cast<int>(v); }
+
+// ----- StpMode -----
+
+enum class StpMode : int {
+    Unspecified     = 0,
+    CancelResting   = 1,
+    CancelAggressor = 2,
+    CancelBoth      = 3,
+};
+
+inline int to_proto(StpMode v) { return static_cast<int>(v); }
+
+inline StpMode stp_mode_from_proto(int v) {
+    switch (v) {
+        case 0: return StpMode::Unspecified;
+        case 1: return StpMode::CancelResting;
+        case 2: return StpMode::CancelAggressor;
+        case 3: return StpMode::CancelBoth;
+        default: throw std::invalid_argument("Unknown StpMode proto value: " + std::to_string(v));
+    }
+}
 
 /// Controls when a WebSocket place_order call returns.
 enum class PlaceOrderConfirmation {

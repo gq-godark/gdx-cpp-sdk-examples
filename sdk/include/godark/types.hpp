@@ -17,6 +17,26 @@ struct OrderAck {
     std::optional<std::string> error = std::nullopt;
 };
 
+/// Optional place-order flags mirrored from gdx-web / sequencer `PlaceOrderInput`.
+struct PlaceOrderOptions {
+    bool reduce_only = false;
+    bool post_only = false;
+    StpMode stp_mode = StpMode::Unspecified;
+    std::optional<int32_t> peg_offset_bps = std::nullopt;
+    std::optional<double> trigger_price = std::nullopt;
+    std::optional<double> take_profit_price = std::nullopt;
+    std::optional<double> stop_loss_price = std::nullopt;
+};
+
+/// Ack for account-wide `cancel_all`, `close_all`, or per-symbol `reverse`.
+struct CountAck {
+    std::string sequence;
+    uint32_t count = 0;
+    std::vector<std::string> order_ids;
+    std::optional<uint32_t> error_code = std::nullopt;
+    std::optional<std::string> reject_text = std::nullopt;
+};
+
 /// One cancel-replace leg of a mass quote. `cancel_order_id` 0/nullopt = pure
 /// place; `time_in_force` defaults to "GTC"; `expiry_time` (ns) is required for GTD.
 struct MassQuoteLegInput {

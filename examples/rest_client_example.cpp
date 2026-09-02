@@ -59,6 +59,7 @@ int main() {
         try {
             auto lev = client.get_leverage();
             std::cout << "leverage settings: " << lev.settings.size() << " entries\n";
+            std::cout << "  (WS push: on_leverage_settings in full_trader_example.cpp)\n";
             for (std::size_t i = 0; i < lev.settings.size() && i < 5; ++i) {
                 const auto& row = lev.settings[i];
                 std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage

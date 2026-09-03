@@ -43,6 +43,19 @@ The MM examples expect:
 
 Use `.env.example` as the template for your local `.env`.
 
+### WebSocket transport defaults
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeat_interval_sec` | `30` | JSON ping interval |
+| `stale_timeout_sec` | `120` | Absolute silence cap before disconnect |
+| `missed_heartbeat_limit` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `auto_reconnect` | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeat_interval_sec` is not the disconnect budget. On stale disconnect the SDK reports a
+non-fatal `ConnectionError` via `on_error` (message contains `stale heartbeat`), then
+auto-reconnects unless you called `disconnect()`.
+
 ## GodarkClient API
 
 **Header:** `<godark/client.hpp>` (also re-exported via `<godark/godark.hpp>`)
@@ -177,6 +190,20 @@ All SDK exceptions inherit from `godark::Error`:
 - `ConnectionError`
 - `EncryptionError`
 - `TimeoutError`
+
+## GodarkRestClient (account info)
+
+**Header:** `<godark/rest_client.hpp>`
+
+Do **not** send raw WebSocket `account.info` — the edge rejects it as an unknown op.
+
+Use `GodarkRestClient::get_account()` for account margin / account info:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` |
+
+See `examples/full_trader_rest.cpp`. Order flow remains WebSocket-only via `GodarkClient`.
 
 ## Example files in this distribution
 

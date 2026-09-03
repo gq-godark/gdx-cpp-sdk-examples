@@ -51,6 +51,36 @@ The MM examples expect:
 
 Use `.env.example` as the template for your local `.env`.
 
+### WebSocket transport defaults
+
+`ClientConfig::transport` defaults are tuned for long-running production clients:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeat_interval_sec` | `30` | JSON ping interval |
+| `stale_timeout_sec` | `120` | Absolute silence cap before disconnect |
+| `missed_heartbeat_limit` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `auto_reconnect` | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeat_interval_sec` is **not** the disconnect budget. Disconnect happens when either
+`stale_timeout_sec` is exceeded or `missed_heartbeat_limit` consecutive heartbeat intervals
+pass without inbound traffic (pong, push, or ack).
+
+On stale disconnect the SDK emits a non-fatal `ConnectionError` via `on_error` (message contains
+`stale heartbeat`), closes the socket, and auto-reconnects unless you called `disconnect()`.
+
+```cpp
+cfg.auto_reconnect = true;
+cfg.transport.heartbeat_interval_sec = 30;
+cfg.transport.stale_timeout_sec = 120;
+cfg.transport.missed_heartbeat_limit = 2;
+
+client.on_reconnect = []() { /* channels resubscribed */ };
+client.on_error = [](const godark::Error& e) {
+    // Log stale heartbeat, decrypt failures, queue overflow, etc.
+};
+```
+
 ## Adding `godark` to your project
 
 In this repository, the example targets depend on the vendored static
@@ -389,6 +419,27 @@ rolling auto-PR triggered by `gdx-cpp-sdk` pushes to `main`, using the
 same `ubuntu-24.04` runner as `release.yml` so byte parity is
 deterministic across CI runs.
 
-## RestClient example
+## RestClient
 
-`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.
+**Header:** `<godark/rest_client.hpp>`
+
+`GodarkRestClient` handles REST auth and encrypted snapshot reads. Order flow (place / modify / cancel) remains WebSocket-only via `GodarkClient`.
+
+`rest_client_example` covers auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. `full_trader_rest` adds encrypted snapshot reads and REST trading.
+
+### Account info
+
+Do **not** send raw WebSocket `account.info` — the edge rejects it as an unknown op.
+
+Use `GodarkRestClient::get_account()` instead:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account_margin_update`) |
+
+Related snapshot reads:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_open_orders()` | `POST /api/v1/openOrders` | `get_open_orders` | `OpenOrdersSnapshot` |
+| `get_positions()` | `POST /api/v1/positions` | `get_positions` | `PositionsSnapshot` |

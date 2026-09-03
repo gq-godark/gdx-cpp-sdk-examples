@@ -17,6 +17,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -83,8 +84,10 @@ int main() {
     cfg.auto_reconnect = true;
     cfg.stream_buffer_size = 256;
     cfg.transport.command_timeout_sec = 10;
+    // Production WebSocket liveness defaults (match SDK TransportConfig defaults).
     cfg.transport.heartbeat_interval_sec = 30;
-    cfg.transport.stale_timeout_sec = 60;
+    cfg.transport.stale_timeout_sec = 120;
+    cfg.transport.missed_heartbeat_limit = 2;
 
     const std::string tls_skip =
         godark_examples::env_first({"GODARK_TLS_SKIP_VERIFY", "GDX_TLS_SKIP_VERIFY"});
@@ -212,6 +215,12 @@ int main() {
 
     client.on_error = [&](const godark::Error& e) {
         ++error_count;
+        if (dynamic_cast<const godark::ConnectionError*>(&e) != nullptr
+            && std::string_view(e.what()).find("stale heartbeat") != std::string_view::npos) {
+            std::cerr << "STALE HEARTBEAT (non-fatal, auto-reconnect expected): "
+                      << e.what() << "\n";
+            return;
+        }
         std::cerr << "SDK ERROR (non-fatal): " << e.what() << "\n";
     };
 

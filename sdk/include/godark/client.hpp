@@ -114,7 +114,9 @@ struct TransportConfig {
     /// Client ping interval in seconds.
     int heartbeat_interval_sec = 30;
     /// No inbound message for this long triggers disconnect (seconds).
-    int stale_timeout_sec = 60;
+    int stale_timeout_sec = 120;
+    /// Consecutive heartbeat intervals without inbound traffic before disconnect.
+    int missed_heartbeat_limit = 2;
     /// When true (default), emit public-docs `{id, op, args}` frames and
     /// normalize docs replies into the legacy SDK callback/ack shapes.
     bool use_docs_wire = true;

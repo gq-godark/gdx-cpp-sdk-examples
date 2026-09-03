@@ -109,7 +109,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: gq-godark/gdx-proto
-          ref: feature/godark-chain-v0
+          ref: dev
           path: upstream/gdx-proto
           token: ${{ steps.app-token-upstream.outputs.token }}
 

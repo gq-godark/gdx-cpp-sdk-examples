@@ -51,6 +51,36 @@ The MM examples expect:
 
 Use `.env.example` as the template for your local `.env`.
 
+### WebSocket transport defaults
+
+`ClientConfig::transport` defaults are tuned for long-running production clients:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeat_interval_sec` | `30` | JSON ping interval |
+| `stale_timeout_sec` | `120` | Absolute silence cap before disconnect |
+| `missed_heartbeat_limit` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `auto_reconnect` | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeat_interval_sec` is **not** the disconnect budget. Disconnect happens when either
+`stale_timeout_sec` is exceeded or `missed_heartbeat_limit` consecutive heartbeat intervals
+pass without inbound traffic (pong, push, or ack).
+
+On stale disconnect the SDK emits a non-fatal `ConnectionError` via `on_error` (message contains
+`stale heartbeat`), closes the socket, and auto-reconnects unless you called `disconnect()`.
+
+```cpp
+cfg.auto_reconnect = true;
+cfg.transport.heartbeat_interval_sec = 30;
+cfg.transport.stale_timeout_sec = 120;
+cfg.transport.missed_heartbeat_limit = 2;
+
+client.on_reconnect = []() { /* channels resubscribed */ };
+client.on_error = [](const godark::Error& e) {
+    // Log stale heartbeat, decrypt failures, queue overflow, etc.
+};
+```
+
 ## Adding `godark` to your project
 
 In this repository, the example targets depend on the vendored static

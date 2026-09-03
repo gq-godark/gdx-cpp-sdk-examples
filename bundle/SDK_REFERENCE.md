@@ -43,6 +43,19 @@ The MM examples expect:
 
 Use `.env.example` as the template for your local `.env`.
 
+### WebSocket transport defaults
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `heartbeat_interval_sec` | `30` | JSON ping interval |
+| `stale_timeout_sec` | `120` | Absolute silence cap before disconnect |
+| `missed_heartbeat_limit` | `2` | Consecutive missed heartbeat intervals before disconnect |
+| `auto_reconnect` | `true` | Reconnect with backoff after unexpected disconnect |
+
+`heartbeat_interval_sec` is not the disconnect budget. On stale disconnect the SDK reports a
+non-fatal `ConnectionError` via `on_error` (message contains `stale heartbeat`), then
+auto-reconnects unless you called `disconnect()`.
+
 ## GodarkClient API
 
 **Header:** `<godark/client.hpp>` (also re-exported via `<godark/godark.hpp>`)

@@ -389,6 +389,27 @@ rolling auto-PR triggered by `gdx-cpp-sdk` pushes to `main`, using the
 same `ubuntu-24.04` runner as `release.yml` so byte parity is
 deterministic across CI runs.
 
-## RestClient example
+## RestClient
 
-`GodarkRestClient` is exercised by `rest_client_example` / `rest-client-example`: REST auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. Encrypted place/cancel/modify/update-leverage remain WebSocket-only via `GodarkClient`.
+**Header:** `<godark/rest_client.hpp>`
+
+`GodarkRestClient` handles REST auth and encrypted snapshot reads. Order flow (place / modify / cancel) remains WebSocket-only via `GodarkClient`.
+
+`rest_client_example` covers auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. `full_trader_rest` adds encrypted snapshot reads and REST trading.
+
+### Account info
+
+Do **not** send raw WebSocket `account.info` — the edge rejects it as an unknown op.
+
+Use `GodarkRestClient::get_account()` instead:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account_margin_update`) |
+
+Related snapshot reads:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_open_orders()` | `POST /api/v1/openOrders` | `get_open_orders` | `OpenOrdersSnapshot` |
+| `get_positions()` | `POST /api/v1/positions` | `get_positions` | `PositionsSnapshot` |

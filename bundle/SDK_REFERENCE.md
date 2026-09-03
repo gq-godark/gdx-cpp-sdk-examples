@@ -178,6 +178,20 @@ All SDK exceptions inherit from `godark::Error`:
 - `EncryptionError`
 - `TimeoutError`
 
+## GodarkRestClient (account info)
+
+**Header:** `<godark/rest_client.hpp>`
+
+Do **not** send raw WebSocket `account.info` — the edge rejects it as an unknown op.
+
+Use `GodarkRestClient::get_account()` for account margin / account info:
+
+| Method | Path | `request_type` | Reply |
+|---|---|---|---|
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` |
+
+See `examples/full_trader_rest.cpp`. Order flow remains WebSocket-only via `GodarkClient`.
+
 ## Example files in this distribution
 
 | File | Purpose |

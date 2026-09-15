@@ -292,6 +292,24 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
+    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
+    // Omit slippage_bps → venue max (localnet 5%).
+    std::cout << "Placing market IOC BUY qty=0.01 with slippage_bps=50 (0.5% walk)...\n";
+    try {
+        auto mkt_ack = client.place_order(
+            SYMBOL, godark::Side::BUY, godark::OrderType::MARKET,
+            0.01, std::nullopt, godark::TimeInForce::IOC,
+            godark::PlaceOrderConfirmation::Book,
+            godark::PlaceOrderOptions{.slippage_bps = 50});
+        std::cout << "MARKET BUY placed: order_id=" << mkt_ack.order_id << "\n";
+    } catch (const godark::OrderError& e) {
+        std::cerr << "Market BUY rejected (continuing): " << fmt_err(e) << "\n";
+    } catch (const godark::Error& e) {
+        std::cerr << "Market BUY rejected (continuing): " << e.what() << "\n";
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     const double sell_px = std::round(mark * 1.03 * 10.0) / 10.0;
     std::cout << "Placing limit SELL @ " << sell_px << "...\n";
     try {

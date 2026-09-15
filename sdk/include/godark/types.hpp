@@ -26,6 +26,8 @@ struct PlaceOrderOptions {
     std::optional<double> trigger_price = std::nullopt;
     std::optional<double> take_profit_price = std::nullopt;
     std::optional<double> stop_loss_price = std::nullopt;
+    /// Max walk vs mark for market / stop-market (basis points). unset → venue max.
+    std::optional<uint32_t> slippage_bps = std::nullopt;
 };
 
 /// Ack for account-wide `cancel_all`, `close_all`, or per-symbol `reverse`.

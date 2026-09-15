@@ -261,33 +261,34 @@ int main() {
     const double buy_px = std::round(mark * 0.997 * 10.0) / 10.0;
     std::cout << "Placing limit BUY @ " << buy_px << " (mark=" << mark << ")...\n";
     godark::OrderAck buy_ack;
+    bool have_buy = false;
     try {
         buy_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::LIMIT,
             0.1, buy_px, godark::TimeInForce::GTC);
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
+        have_buy = true;
     } catch (const godark::OrderError& e) {
-        std::cerr << "BUY rejected: " << fmt_err(e) << "\n";
-        client.disconnect();
-        return 1;
+        std::cerr << "BUY rejected (continuing to market Place): " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {
-        std::cerr << "BUY failed: " << e.what() << "\n";
-        client.disconnect();
-        return 1;
+        std::cerr << "BUY failed (continuing to market Place): " << e.what() << "\n";
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    const double modify_px = std::round(mark * 0.996 * 10.0) / 10.0;
-    std::cout << "Modifying order price to " << modify_px << "...\n";
-    try {
-        auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_px);
-        std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
-    } catch (const godark::OrderError& e) {
-        std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
-    } catch (const godark::Error& e) {
-        std::cerr << "Modify rejected: " << e.what() << "\n";
+    if (have_buy) {
+        const double modify_px = std::round(mark * 0.996 * 10.0) / 10.0;
+        std::cout << "Modifying order price to " << modify_px << "...\n";
+        try {
+            auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_px);
+            std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
+        } catch (const godark::OrderError& e) {
+            std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
+        } catch (const godark::Error& e) {
+            std::cerr << "Modify rejected: " << e.what() << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -447,12 +448,14 @@ int main() {
     }
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    std::cout << "Cancelling original BUY (cleanup)...\n";
-    try {
-        client.cancel_order(buy_ack.order_id, SYMBOL);
-        std::cout << "Original BUY cancelled\n";
-    } catch (...) {
-        std::cout << "Original BUY already filled or cancelled\n";
+    if (have_buy) {
+        std::cout << "Cancelling original BUY (cleanup)...\n";
+        try {
+            client.cancel_order(buy_ack.order_id, SYMBOL);
+            std::cout << "Original BUY cancelled\n";
+        } catch (...) {
+            std::cout << "Original BUY already filled or cancelled\n";
+        }
     }
 
     std::cout << sep << "\n  Session complete\n"

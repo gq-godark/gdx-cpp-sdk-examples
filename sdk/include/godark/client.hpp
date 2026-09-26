@@ -142,8 +142,11 @@ struct ClientConfig {
     /// (testnet `wss://api.godark-dex.com`, Devnet `wss://api.devnet.godark-dex.com`;
     /// no public mainnet today).
     std::string base_url;
-    /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
-    /// then to the auth response. Required for local edge instances that omit it.
+    /// Optional Solana account pubkey (base58). Normally resolved from the auth
+    /// response; explicit configuration is useful for local edge fixtures.
+    std::string account;
+    /// Deprecated UUID-era alias. Used only when `account` and account env vars
+    /// are unset.
     std::string user_uuid;
     /// 64-hex-character pinned HPKE sequencer static public key. Empty
     /// resolves as: this field > `GODARK_HPKE_STATIC_PUBLIC_KEY` (aliases
@@ -193,6 +196,9 @@ public:
     void logout();
 
     bool is_connected() const;
+    /// Authenticated Solana account pubkey (base58).
+    std::optional<std::string> account() const;
+    /// Deprecated compatibility alias for [`account()`].
     std::optional<std::string> user_uuid() const;
 
     OrderAck place_order(

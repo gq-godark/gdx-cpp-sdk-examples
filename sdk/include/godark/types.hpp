@@ -132,6 +132,9 @@ struct TpslAck {
 
 struct OrderUpdate {
     std::string order_id;
+    /// Solana account pubkey (base58).
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     int64_t symbol_id;
     Side side;
@@ -153,6 +156,8 @@ struct OrderUpdate {
 };
 
 struct PositionUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     int64_t symbol_id;
     Side side;
@@ -172,6 +177,8 @@ struct LeverageSetting {
 };
 
 struct LeverageSettings {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     std::vector<LeverageSetting> settings;
     uint64_t server_timestamp = 0;
@@ -229,6 +236,8 @@ struct PositionRow {
 
 /// Full per-user positions batch (initial / periodic / event-triggered).
 struct PositionsSnapshot {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     std::vector<PositionRow> rows;
     /// Sequencer wall-clock (ns) when the batch was assembled.
@@ -269,6 +278,8 @@ struct SystemHealthUpdate {
 
 /// Updated shielded balance for the authenticated user.
 struct BalanceUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     uint64_t shielded_balance_raw = 0;
     uint64_t timestamp = 0;
@@ -290,9 +301,11 @@ struct AccountMarginSummary {
 
 /// Account-margin push / GetAccount snapshot for a user.
 struct AccountMarginUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     uint64_t server_timestamp = 0;
-    std::optional<AccountMarginSummary> account = std::nullopt;
+    std::optional<AccountMarginSummary> summary = std::nullopt;
 };
 
 /// Margin tier transition / recovery for `(owner, symbol_id)`.

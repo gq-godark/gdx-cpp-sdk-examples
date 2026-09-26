@@ -71,8 +71,8 @@ int main() {
         const auto positions = client.get_positions();
         std::cout << "positions " << positions.rows.size() << "\n";
         const auto account = client.get_account();
-        if (account.account) {
-            std::cout << "account total_collateral=" << account.account->total_collateral << "\n";
+        if (account.summary) {
+            std::cout << "account total_collateral=" << account.summary->total_collateral << "\n";
         }
 
         const double price = rest_limit_price();

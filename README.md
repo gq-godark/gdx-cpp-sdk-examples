@@ -69,6 +69,8 @@ Required keys:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset). The SDK derives the REST host from this same URL.
+- `GODARK_ACCOUNT` — Solana account pubkey override for local fixtures; normal
+  authentication returns the account automatically.
 - `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
 - `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.

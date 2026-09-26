@@ -38,6 +38,8 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GODARK_ACCOUNT` / `GDX_ACCOUNT` (optional) — Solana account pubkey
+  override for local fixtures; normal auth returns it automatically
 - `GDX_HPKE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
@@ -68,7 +70,7 @@ auto-reconnects unless you called `disconnect()`.
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
-| `user_uuid` | `std::optional<std::string> user_uuid() const` | Authenticated user id |
+| `account` | `std::optional<std::string> account() const` | Authenticated Solana account pubkey (base58) |
 
 ### Trading commands
 
@@ -156,7 +158,7 @@ Includes order lifecycle fields such as:
 ### PositionUpdate
 
 Includes position lifecycle fields such as:
-`user_uuid`, `symbol_id`, `side`, `update_type`,
+`account`, `symbol_id`, `side`, `update_type`,
 `size`, `entry_price`, `fill_price`, `fill_qty`, `timestamp`.
 
 ## Enums
@@ -206,7 +208,7 @@ Use `GodarkRestClient::get_account()` for account margin / account info:
 
 | Method | Path | `request_type` | Reply |
 |---|---|---|---|
-| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` |
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account` identity + optional `summary`) |
 
 See `examples/full_trader_rest.cpp`. Order flow remains WebSocket-only via `GodarkClient`.
 

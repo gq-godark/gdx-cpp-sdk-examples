@@ -35,7 +35,9 @@ public:
         std::optional<std::string> api_secret;
         std::optional<std::string> passphrase;
         std::optional<std::string> rest_base_url;
-        /// Fallback when JWT omits `user_uuid` (local edge).
+        /// Fallback Solana account pubkey when auth/JWT omits `account`.
+        std::optional<std::string> account;
+        /// Deprecated UUID-era alias, used only when `account` is unset.
         std::optional<std::string> user_uuid;
         /// Pinned sequencer HPKE public key (hex). Resolves as: this field >
         /// `GDX_HPKE_STATIC_PUBLIC_KEY` (and aliases) > baked pin inferred from
@@ -56,6 +58,8 @@ public:
     GodarkRestClient& operator=(GodarkRestClient&&) noexcept;
 
     [[nodiscard]] bool is_session_established() const;
+    [[nodiscard]] std::optional<std::string> account() const;
+    /// Deprecated compatibility alias for [`account()`].
     [[nodiscard]] std::optional<std::string> user_uuid() const;
     [[nodiscard]] std::optional<std::string> token_scope() const;
 

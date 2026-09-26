@@ -48,6 +48,7 @@ Public testnet needs only the three credential keys above for hosted testnet; lo
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL.
+- `GODARK_ACCOUNT` — Solana account pubkey override for local fixtures.
 - `GDX_HPKE_STATIC_PUBLIC_KEY` — override the sequencer HPKE pin (**not required for testnet**). Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`.
 
 ```bash

@@ -46,6 +46,8 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GODARK_ACCOUNT` / `GDX_ACCOUNT` (optional) — Solana account pubkey
+  override for local fixtures; normal auth returns it automatically
 - `GDX_HPKE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
@@ -136,7 +138,7 @@ consumer site.
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
-| `user_uuid` | `std::optional<std::string> user_uuid() const` | Authenticated user id |
+| `account` | `std::optional<std::string> account() const` | Authenticated Solana account pubkey (base58) |
 
 ### Trading commands
 
@@ -240,7 +242,7 @@ precision. Command APIs use `double` / `std::optional<double>` where noted on
 ### OrderUpdate
 
 Includes order lifecycle fields such as:
-`order_id`, `user_uuid`, `symbol_id`, `side`, `status`, `update_type`,
+`order_id`, `account`, `symbol_id`, `side`, `status`, `update_type`,
 `price`, `quantity`, `filled_qty`, `remaining_qty`, `cum_fill`,
 `cancel_reason`, `reject_reason`, `correlation_id`, `timestamp`.
 
@@ -250,7 +252,7 @@ Per-fill delta. Use this stream to drive incremental P&L / position
 accounting between `PositionsSnapshot` refreshes.
 
 Includes position lifecycle fields such as:
-`user_uuid`, `symbol_id`, `side`, `update_type`,
+`account`, `symbol_id`, `side`, `update_type`,
 `size`, `entry_price`, `previous_size`, `fill_price`, `fill_qty`,
 `correlation_id`, `timestamp`.
 
@@ -270,7 +272,7 @@ all open positions for the authenticated user. `rows` holds one
 | Type | Notable fields |
 |------|----------------|
 | `SystemHealthUpdate` | `total_nodes`, `accepting_orders`, `ready`, `degraded`, `exhausted`, `warming`, `draining`, `waiting` |
-| `BalanceUpdate` | `user_uuid`, `shielded_balance_raw`, `timestamp` |
+| `BalanceUpdate` | `account`, `shielded_balance_raw`, `timestamp` |
 | `MarginAlert` | `owner`, `symbol_id`, `tier`, `margin_ratio_bps`, `mark_price_bps`, `liquidation_price_bps`, `state_version`, `recovered`, `ts` |
 | `FundingRateUpdate` | `symbol_id`, `current_rate`, `predicted_rate`, `next_funding_time`, `timestamp` |
 | `SettlementUpdate` | `batch_id`, `status` (`SettlementBatchStatus`), `tx_signature`, `timestamp`, `affected_user_uuids` |
@@ -435,7 +437,7 @@ Use `GodarkRestClient::get_account()` instead:
 
 | Method | Path | `request_type` | Reply |
 |---|---|---|---|
-| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account_margin_update`) |
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account` identity + optional `summary`) |
 
 Related snapshot reads:
 

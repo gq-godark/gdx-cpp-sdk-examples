@@ -55,9 +55,9 @@ int main() {
         godark_examples::env_first({"GODARK_API_KEY", "GDX_API_KEY"});
     if (!legacy.empty()) {
         cfg.api_key = legacy;
-        if (auto uid = godark_examples::env_first({"GODARK_USER_UUID", "GDX_USER_UUID"});
-            !uid.empty()) {
-            cfg.user_uuid = uid;
+        if (auto account = godark_examples::env_first({"GODARK_ACCOUNT", "GDX_ACCOUNT"});
+            !account.empty()) {
+            cfg.account = account;
         }
     } else {
         cfg.api_key_id = godark_examples::env_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
@@ -231,8 +231,8 @@ int main() {
         return 1;
     }
 
-    auto uid = client.user_uuid();
-    std::cout << "Authenticated as user_uuid=" << (uid ? *uid : "?")
+    auto account = client.account();
+    std::cout << "Authenticated as account=" << (account ? *account : "?")
               << "  (HPKE session)\n";
 
     client.subscribe({"orders", "positions", "funding_rate"});

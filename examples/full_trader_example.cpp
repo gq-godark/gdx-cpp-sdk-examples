@@ -76,8 +76,7 @@ int main() {
     }
     if (std::string pin = godark_examples::env_first(
             {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
-             "GDX_HPKE_STATIC_PUBKEY", "GODARK_HPKE_STATIC_PUBLIC_KEY",
-             "GDX_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBKEY"});
+             "GDX_HPKE_STATIC_PUBKEY"});
         !pin.empty()) {
         cfg.hpke_static_public_key_hex = std::move(pin);
     }
@@ -270,9 +269,9 @@ int main() {
                   << "  sequence=" << buy_ack.sequence << "\n";
         have_buy = true;
     } catch (const godark::OrderError& e) {
-        std::cerr << "BUY rejected (continuing to market Place): " << fmt_err(e) << "\n";
+        std::cerr << "BUY rejected (continuing to market order): " << fmt_err(e) << "\n";
     } catch (const godark::Error& e) {
-        std::cerr << "BUY failed (continuing to market Place): " << e.what() << "\n";
+        std::cerr << "BUY failed (continuing to market order): " << e.what() << "\n";
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));

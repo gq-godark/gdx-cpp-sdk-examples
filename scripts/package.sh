@@ -139,7 +139,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ---- verify upstream is at the pinned ref ---------------------------------
-if [[ ! -d "$UPSTREAM_SRC/.git" ]]; then
+if ! git -C "$UPSTREAM_SRC" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "error: '$UPSTREAM_SRC' is not a git checkout — cannot verify pin" >&2
   exit 1
 fi
@@ -159,10 +159,20 @@ if [[ "$upstream_head_sha" != "$upstream_pin_sha" ]]; then
 fi
 echo "Upstream verified at pin: $PINNED_REF ($upstream_head_sha)"
 
-# gdx-proto submodule must be present (CMake reads .proto files from it).
-if [[ ! -d "$UPSTREAM_SRC/gdx-proto/proto" ]]; then
-  echo "error: '$UPSTREAM_SRC/gdx-proto/proto' missing — initialize submodule:" >&2
-  echo "       git -C $UPSTREAM_SRC submodule update --init --recursive" >&2
+# Resolve gdx-proto using the same override accepted by upstream CMake.
+if [[ -n "${GDX_PROTO_ROOT:-}" ]]; then
+  if [[ -f "$GDX_PROTO_ROOT/gdx/common/v1/types.proto" ]]; then
+    PROTO_ROOT="$GDX_PROTO_ROOT"
+  elif [[ -f "$GDX_PROTO_ROOT/proto/gdx/common/v1/types.proto" ]]; then
+    PROTO_ROOT="$GDX_PROTO_ROOT/proto"
+  else
+    echo "error: GDX_PROTO_ROOT='$GDX_PROTO_ROOT' does not contain gdx/common/v1/types.proto" >&2
+    exit 1
+  fi
+elif [[ -f "$UPSTREAM_SRC/gdx-proto/proto/gdx/common/v1/types.proto" ]]; then
+  PROTO_ROOT="$UPSTREAM_SRC/gdx-proto/proto"
+else
+  echo "error: gdx-proto missing — set GDX_PROTO_ROOT or place it at '$UPSTREAM_SRC/gdx-proto'" >&2
   exit 1
 fi
 
@@ -172,7 +182,7 @@ UPSTREAM_PREFIX="$(mktemp -d -t godark-cpp-pkg-prefix-XXXXXX)/sdk"
 mkdir -p "$UPSTREAM_BUILD" "$UPSTREAM_PREFIX"
 
 echo "Building upstream SDK from $UPSTREAM_SRC ..."
-cmake -S "$UPSTREAM_SRC" -B "$UPSTREAM_BUILD" -G Ninja \
+GDX_PROTO_ROOT="$PROTO_ROOT" cmake -S "$UPSTREAM_SRC" -B "$UPSTREAM_BUILD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DGODARK_BUILD_TESTS=OFF \
     -DGODARK_BUILD_EXAMPLES=OFF \

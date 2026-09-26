@@ -175,8 +175,8 @@ From a sibling development checkout of the upstream SDK:
 
 ```bash
 git -C /path/to/gdx-cpp-sdk checkout <ref>
-git -C /path/to/gdx-cpp-sdk submodule update --init --recursive
-bash scripts/refresh_sdk.sh /path/to/gdx-cpp-sdk
+GDX_PROTO_ROOT=/path/to/gdx-proto \
+  bash scripts/refresh_sdk.sh /path/to/gdx-cpp-sdk
 git diff --stat -- sdk/
 git add sdk/ && git commit -m "chore(sdk): bump pin to $(cut -c1-7 sdk/UPSTREAM_REF)"
 ```

@@ -26,6 +26,8 @@ struct PlaceOrderOptions {
     std::optional<double> trigger_price = std::nullopt;
     std::optional<double> take_profit_price = std::nullopt;
     std::optional<double> stop_loss_price = std::nullopt;
+    /// Max walk vs mark for market / stop-market (basis points). unset → venue max.
+    std::optional<uint32_t> slippage_bps = std::nullopt;
 };
 
 /// Ack for account-wide `cancel_all`, `close_all`, or per-symbol `reverse`.
@@ -192,9 +194,10 @@ struct Balance {
 };
 
 // ---------------------------------------------------------------------------
-// Sequencer push types — mirrors `gdx.sequencer.v1.SequencerToEdgeMessage`
-// `oneof inner` arms beyond order/position. Surfaced via the corresponding
-// `on_*` callbacks and `try_recv_*()` queues on `GodarkClient`.
+// Sequencer push types. Encrypted push plaintexts are bare inner protobuf
+// messages selected by the clear ResponseHeader.message_type discriminator.
+// Supported variants are surfaced via the corresponding `on_*` callbacks and
+// `try_recv_*()` queues on `GodarkClient`.
 // ---------------------------------------------------------------------------
 
 /// Why a [`PositionsSnapshot`] was emitted.

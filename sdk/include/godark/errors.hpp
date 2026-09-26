@@ -24,10 +24,13 @@ public:
 class OrderError : public Error {
 public:
     std::optional<std::string> error_code;
+    /** Catalog default English when `find_order_error` hits; distinct from log message. */
+    std::optional<std::string> user_message;
 
     explicit OrderError(const std::string& message,
-                        std::optional<std::string> code = std::nullopt)
-        : Error(message), error_code(std::move(code)) {}
+                        std::optional<std::string> code = std::nullopt,
+                        std::optional<std::string> user_msg = std::nullopt)
+        : Error(message), error_code(std::move(code)), user_message(std::move(user_msg)) {}
 };
 
 class ConnectionError : public Error {

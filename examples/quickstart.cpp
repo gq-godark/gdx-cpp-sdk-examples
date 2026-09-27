@@ -57,6 +57,11 @@ int main() {
         config.passphrase = passphrase_env;
     }
     config.environment = godark::Environment::Testnet;
+    if (std::string account =
+            godark_examples::env_first({"GODARK_ACCOUNT", "GDX_ACCOUNT"});
+        !account.empty()) {
+        config.account = std::move(account);
+    }
     if (std::string pin = godark_examples::env_first(
             {"GODARK_HPKE_STATIC_PUBLIC_KEY", "GDX_HPKE_STATIC_PUBLIC_KEY",
              "GDX_HPKE_STATIC_PUBKEY", "GODARK_HPKE_STATIC_PUBLIC_KEY",
@@ -74,7 +79,8 @@ int main() {
     try {
         godark::GodarkClient client(config);
         client.connect();
-        std::cout << "Connected as user " << *client.user_uuid() << "\n";
+        std::cout << "Connected as account "
+                  << client.account().value_or("<unavailable>") << "\n";
 
         // Book confirmation waits on private order updates; subscribe first.
         client.subscribe({"orders"});

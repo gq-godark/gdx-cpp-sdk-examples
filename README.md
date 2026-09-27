@@ -69,10 +69,10 @@ Required keys:
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL (default: public testnet `wss://api.godark-dex.com` via the SDK Testnet environment preset). The SDK derives the REST host from this same URL.
-- `GODARK_ACCOUNT` — Solana account pubkey override for local fixtures; normal
-  authentication returns the account automatically.
+- `GODARK_ACCOUNT` — canonical Solana account pubkey override for local
+  fixtures; normal authentication returns the account automatically through
+  `client.account()`.
 - `GDX_HPKE_STATIC_PUBLIC_KEY` — sequencer HPKE static public key (64 hex). Required for **localnet/devnet** encrypted trading Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`, `VITE_GDX_HPKE_STATIC_PUBKEY`.
-- `GODARK_USER_UUID` — some local edges need an explicit UUID from auth.
 - `GODARK_TLS_SKIP_VERIFY` — set to `1` / `true` for dev TLS on `wss://`.
 
 Legacy `GDX_*` names are accepted when the matching `GODARK_*` key is unset.
@@ -131,7 +131,9 @@ cmake --build build -j
 | Target | Source | Purpose |
 |--------|--------|---------|
 | `quickstart` | `examples/quickstart.cpp` | Minimal connect → `subscribe({"orders"})` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel; Linux x86_64 ZIP) |
-| `full_trader_example` | `examples/full_trader_example.cpp` | Reference bot flow with callbacks for all sequencer push variants, place / modify / cancel, mass-quote / batch-cancel, session summary |
+| `full_trader_example` | `examples/full_trader_example.cpp` | Primary WebSocket reference bot with callbacks for all sequencer push variants, place / modify / cancel, mass-quote / batch-cancel, session summary |
+| `full_trader_rest` | `examples/full_trader_rest.cpp` | REST auth, canonical account identity, snapshots, and individual place / modify / cancel |
+| `rest_client_example` | `examples/rest_client_example.cpp` | REST profile, leverage, balance, and public market-data reads |
 
 Order-type support in this MM distribution is limited to **`MARKET`** and
 **`LIMIT`**. See `bundle/SDK_REFERENCE.md` (shipped at the archive root as

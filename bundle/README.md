@@ -48,7 +48,8 @@ Public testnet needs only the three credential keys above for hosted testnet; lo
 Optional:
 
 - `GODARK_EDGE_URL` — override the edge URL.
-- `GODARK_ACCOUNT` — Solana account pubkey override for local fixtures.
+- `GODARK_ACCOUNT` — canonical Solana account pubkey override for local
+  fixtures; normal authentication returns it through `client.account()`.
 - `GDX_HPKE_STATIC_PUBLIC_KEY` — override the sequencer HPKE pin (**not required for testnet**). Aliases: `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`.
 
 ```bash
@@ -74,6 +75,11 @@ cmake --build build
 ```bash
 ./build/examples/quickstart
 ```
+
+`quickstart` and `full_trader_example` use the primary WebSocket trading API.
+`full_trader_rest` demonstrates account snapshots and individual REST
+place / modify / cancel. REST mass-quote and batch wrappers are not currently
+available; use WebSocket for those operations.
 
 ## CMake integration (your own bot)
 

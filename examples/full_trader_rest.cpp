@@ -43,6 +43,9 @@ int main() {
         if (const char* base = getenv_first({"GODARK_REST_URL", "GDX_REST_URL"})) {
             cfg.rest_base_url = base;
         }
+        if (const char* account = getenv_first({"GODARK_ACCOUNT", "GDX_ACCOUNT"})) {
+            cfg.account = account;
+        }
 
         const char* kid = getenv_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
         const char* sec = getenv_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
@@ -61,8 +64,8 @@ int main() {
         godark::GodarkRestClient client{cfg};
         client.connect();
 
-        if (auto uid = client.user_uuid()) {
-            std::cout << "identity user_uuid=" << *uid
+        if (auto account = client.account()) {
+            std::cout << "identity account=" << *account
                       << " scope=" << client.token_scope().value_or("") << "\n";
         }
 
@@ -71,6 +74,7 @@ int main() {
         const auto positions = client.get_positions();
         std::cout << "positions " << positions.rows.size() << "\n";
         const auto account = client.get_account();
+        std::cout << "account identity=" << account.account << "\n";
         if (account.summary) {
             std::cout << "account total_collateral=" << account.summary->total_collateral << "\n";
         }

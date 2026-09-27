@@ -3,10 +3,11 @@
 This reference describes the API and workflow used by the market-maker-facing
 distribution in this repository.
 
-The MM examples use WebSocket encrypted trading via `godark::GodarkClient`.
-Encrypted REST trading is not supported — all order flow (place / modify /
-cancel / mass-quote) runs over the HPKE WebSocket client. Standalone
-market-data examples are excluded from this distribution.
+WebSocket is the primary trading API via `godark::GodarkClient` and exposes
+the complete market-maker command surface. `godark::GodarkRestClient` also
+supports encrypted individual place / modify / cancel, account snapshots,
+and public reads. It does not currently expose REST wrappers for mass-quote,
+batch-cancel, or batch-modify.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -132,10 +133,9 @@ matching `try_recv_*()` queue fire for the same item.
 
 ### Concurrency rule
 
-**Single-flight commands**: `place_order`, `cancel_order`, and `modify_order`
-each block until the exchange responds or `transport.command_timeout_sec`
-expires. The transport maintains a single pending-command slot, so only one
-command may be in-flight at a time. Call them sequentially from one thread.
+Encrypted WebSocket order commands are multiplexed by correlation ID and may
+be in flight concurrently. Cleartext transport commands such as subscribe,
+authentication, and HPKE setup remain single-flight.
 
 ## Core Types
 
@@ -198,7 +198,7 @@ All SDK exceptions inherit from `godark::Error`:
 - `EncryptionError`
 - `TimeoutError`
 
-## GodarkRestClient (account info)
+## GodarkRestClient
 
 **Header:** `<godark/rest_client.hpp>`
 
@@ -210,7 +210,21 @@ Use `GodarkRestClient::get_account()` for account margin / account info:
 |---|---|---|---|
 | `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account` identity + optional `summary`) |
 
-See `examples/full_trader_rest.cpp`. Order flow remains WebSocket-only via `GodarkClient`.
+### Available methods
+
+| Category | Methods |
+|---|---|
+| Lifecycle / identity | `connect`, `disconnect`, `is_session_established`, `account`, `token_scope` |
+| Individual orders | `place_order`, `modify_order`, `cancel_order`, `cancel_order_by_client_id` |
+| Order reads | `get_order`, `get_order_by_client_id`, `await_terminal_status` |
+| Account state | `get_account`, `get_open_orders`, `get_positions`, `get_leverage`, `update_leverage` |
+| Profile / balance | `get_me`, `get_balance`, `get_my_balance` |
+| Public market data | `get_funding_rates`, `get_open_interest`, `get_volume` |
+
+The C++ REST client does **not** currently provide `mass_quote`,
+`batch_cancel`, or `batch_modify` wrappers. Use the primary
+`GodarkClient` WebSocket API for those operations and for streaming updates.
+See `examples/full_trader_rest.cpp` for encrypted individual REST trading.
 
 ## Example files in this distribution
 
@@ -218,6 +232,8 @@ See `examples/full_trader_rest.cpp`. Order flow remains WebSocket-only via `Goda
 |------|---------|
 | `examples/quickstart.cpp` | Minimal connect, place, cancel |
 | `examples/full_trader_example.cpp` | Reference bot flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
+| `examples/full_trader_rest.cpp` | REST auth, canonical account identity, snapshots, and individual place / modify / cancel |
+| `examples/rest_client_example.cpp` | REST profile, leverage, balance, and public market-data reads |
 
 ## CMake integration
 

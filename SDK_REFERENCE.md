@@ -11,12 +11,13 @@ version intentionally omits sections that recipients don't need (vendored
 layout / pin discipline, refresh workflow, sourcing-from-git instructions,
 ABI ownership notes).
 
-> Scope: the MM examples use **WebSocket encrypted trading** via
-> `godark::GodarkClient`. Encrypted REST trading is not supported — all order
-> flow (place / modify / cancel / mass-quote) runs over the HPKE WebSocket
-> client. Standalone market-data clients ship in the same library but are
-> outside the bundled examples in this distribution. Order placement support
-> is limited to `MARKET` and `LIMIT`.
+> Scope: **WebSocket is the primary trading API** via
+> `godark::GodarkClient`, including the full market-maker command surface.
+> `godark::GodarkRestClient` also supports encrypted individual order
+> place / modify / cancel plus account snapshots and public reads. It does
+> not currently expose REST wrappers for mass-quote, batch-cancel, or
+> batch-modify. Order placement support in this distribution is limited to
+> `MARKET` and `LIMIT`.
 
 ## Quick Start
 
@@ -202,10 +203,9 @@ matching `try_recv_*()` queue fire for the same item.
 
 ### Concurrency rule
 
-**Single-flight commands**: `place_order`, `cancel_order`, and `modify_order`
-each block until the exchange responds or `transport.command_timeout_sec`
-expires. The transport maintains a single pending-command slot, so only one
-command may be in-flight at a time. Call them sequentially from one thread.
+Encrypted WebSocket order commands are multiplexed by correlation ID and may
+be in flight concurrently. Cleartext transport commands such as subscribe,
+authentication, and HPKE setup remain single-flight.
 
 Push streams above may be consumed concurrently from independent threads —
 that's the intended pattern in `full_trader_example.cpp`.
@@ -425,9 +425,29 @@ deterministic across CI runs.
 
 **Header:** `<godark/rest_client.hpp>`
 
-`GodarkRestClient` handles REST auth and encrypted snapshot reads. Order flow (place / modify / cancel) remains WebSocket-only via `GodarkClient`.
+`GodarkRestClient` handles REST auth, encrypted individual order commands,
+encrypted snapshots, profile/balance reads, and public market-data reads.
+WebSocket remains the primary API and is required for streaming updates and
+the complete market-maker command surface.
 
-`rest_client_example` covers auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. `full_trader_rest` adds encrypted snapshot reads and REST trading.
+`rest_client_example` covers auth, `/auth/me`, leverage, balance, and public
+funding/OI/volume reads. `full_trader_rest` demonstrates encrypted snapshots
+and individual REST place / modify / cancel.
+
+### Available methods
+
+| Category | Methods |
+|---|---|
+| Lifecycle / identity | `connect`, `disconnect`, `is_session_established`, `account`, `token_scope` |
+| Individual orders | `place_order`, `modify_order`, `cancel_order`, `cancel_order_by_client_id` |
+| Order reads | `get_order`, `get_order_by_client_id`, `await_terminal_status` |
+| Account state | `get_account`, `get_open_orders`, `get_positions`, `get_leverage`, `update_leverage` |
+| Profile / balance | `get_me`, `get_balance`, `get_my_balance` |
+| Public market data | `get_funding_rates`, `get_open_interest`, `get_volume` |
+
+The C++ REST client does **not** currently provide `mass_quote`,
+`batch_cancel`, or `batch_modify` wrappers. Use `GodarkClient` over WebSocket
+for those operations.
 
 ### Account info
 

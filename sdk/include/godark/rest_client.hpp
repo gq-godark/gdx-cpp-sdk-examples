@@ -71,6 +71,15 @@ public:
         std::optional<double> min_fill_size, std::optional<uint64_t> expiry_time,
         std::optional<std::string> client_order_id);
 
+    /// Full place-order overload with the same options as WebSocket Place.
+    /// Pass `std::nullopt` for quantity and set `options.quote_notional` for a
+    /// quote-sized order. Exactly one must be set.
+    OrderAck place_order(const std::string& symbol, Side side, OrderType order_type,
+        std::optional<double> quantity, std::optional<double> price,
+        TimeInForce time_in_force, bool aon, std::optional<double> min_fill_size,
+        std::optional<uint64_t> expiry_time, std::optional<std::string> client_order_id,
+        const PlaceOrderOptions& options);
+
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
 
     OrderAck cancel_order_by_client_id(const std::string& client_order_id, const std::string& symbol);

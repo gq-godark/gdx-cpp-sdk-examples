@@ -222,6 +222,21 @@ public:
         PlaceOrderConfirmation confirmation,
         const PlaceOrderOptions& options = {});
 
+    /// Full place-order overload. Pass `std::nullopt` for quantity and set
+    /// `options.quote_notional` for quote-sized orders. Exactly one must be set.
+    OrderAck place_order(
+        const std::string& symbol,
+        Side side,
+        OrderType order_type,
+        std::optional<double> quantity,
+        std::optional<double> price,
+        TimeInForce tif,
+        PlaceOrderConfirmation confirmation,
+        const PlaceOrderOptions& options,
+        bool aon,
+        std::optional<double> min_fill_size,
+        std::optional<uint64_t> expiry_time);
+
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,
                           const std::string& symbol,

@@ -201,12 +201,13 @@ public:
     /// Deprecated compatibility alias for [`account()`].
     std::optional<std::string> user_uuid() const;
 
+    /// Prices and sizes are decimal strings (e.g. `"0.01"`, `"68000.5"`).
     OrderAck place_order(
         const std::string& symbol,
         Side side,
         OrderType order_type,
-        double quantity,
-        std::optional<double> price = std::nullopt,
+        const std::string& quantity,
+        std::optional<std::string> price = std::nullopt,
         TimeInForce tif = TimeInForce::GTC);
 
     /// Place an order with explicit confirmation semantics. Ack returns after
@@ -216,33 +217,34 @@ public:
         const std::string& symbol,
         Side side,
         OrderType order_type,
-        double quantity,
-        std::optional<double> price,
+        const std::string& quantity,
+        std::optional<std::string> price,
         TimeInForce tif,
         PlaceOrderConfirmation confirmation,
         const PlaceOrderOptions& options = {});
 
     /// Full place-order overload. Pass `std::nullopt` for quantity and set
     /// `options.quote_notional` for quote-sized orders. Exactly one must be set.
+    /// Also accepts AON, `min_fill_size`, and `expiry_time`.
     OrderAck place_order(
         const std::string& symbol,
         Side side,
         OrderType order_type,
-        std::optional<double> quantity,
-        std::optional<double> price,
+        std::optional<std::string> quantity,
+        std::optional<std::string> price,
         TimeInForce tif,
         PlaceOrderConfirmation confirmation,
         const PlaceOrderOptions& options,
         bool aon,
-        std::optional<double> min_fill_size,
+        std::optional<std::string> min_fill_size,
         std::optional<uint64_t> expiry_time);
 
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,
                           const std::string& symbol,
-                          std::optional<double> new_price = std::nullopt,
-                          std::optional<double> new_quantity = std::nullopt,
-                          std::optional<double> new_trigger_price = std::nullopt);
+                          std::optional<std::string> new_price = std::nullopt,
+                          std::optional<std::string> new_quantity = std::nullopt,
+                          std::optional<std::string> new_trigger_price = std::nullopt);
 
     /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
     /// legs), fused into one MPC round. Per-symbol leverage is account state;
@@ -270,11 +272,12 @@ public:
     CountAck reverse_position(const std::string& symbol);
 
     /// Amend / attach TP-SL on a resting order or open position.
+    /// TP/SL prices are decimal strings.
     TpslAck amend_tpsl(
         const std::string& symbol,
         const std::string& order_id,
-        std::optional<double> take_profit_price = std::nullopt,
-        std::optional<double> stop_loss_price = std::nullopt,
+        std::optional<std::string> take_profit_price = std::nullopt,
+        std::optional<std::string> stop_loss_price = std::nullopt,
         std::optional<Side> position_side = std::nullopt);
 
     /// Cancel TP/SL without cancelling the parent entry or flattening the position.

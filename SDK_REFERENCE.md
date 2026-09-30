@@ -34,7 +34,7 @@ godark::GodarkClient client(config);
 client.connect();
 
 auto ack = client.place_order(
-    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, 0.01, 999999.0);
+    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
 
 client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
@@ -226,9 +226,9 @@ the client itself.
 
 **Header:** `<godark/types.hpp>`
 
-Wire decimals are exposed as **strings** on push types to preserve sequencer
-precision. Command APIs use `double` / `std::optional<double>` where noted on
-`place_order`.
+Wire decimals and command prices/sizes are **decimal strings**
+(e.g. `"67500.5"`) so callers do not convert from `double`. Push types keep the
+same string form from the sequencer.
 
 ### OrderAck
 

@@ -15,6 +15,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +33,20 @@ static std::string env_or(const char* name, const char* fallback) {
     const char* val = std::getenv(name);
     if (val && val[0] != '\0') return val;
     return fallback;
+}
+
+
+std::string dec_str(double value) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(8) << value;
+    std::string s = oss.str();
+    auto dot = s.find('.');
+    if (dot != std::string::npos) {
+        while (!s.empty() && s.back() == '0') s.pop_back();
+        if (!s.empty() && s.back() == '.') s.pop_back();
+    }
+    if (s.empty() || s == "-0") s = "0";
+    return s;
 }
 
 static double live_mark_price() {
@@ -264,7 +280,7 @@ int main() {
     try {
         buy_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::LIMIT,
-            0.1, buy_px, godark::TimeInForce::GTC);
+            "0.1", dec_str(buy_px), godark::TimeInForce::GTC);
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
         have_buy = true;
@@ -280,7 +296,7 @@ int main() {
         const double modify_px = std::round(mark * 0.996 * 10.0) / 10.0;
         std::cout << "Modifying order price to " << modify_px << "...\n";
         try {
-            auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_px);
+            auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, dec_str(modify_px));
             std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
         } catch (const godark::OrderError& e) {
             std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
@@ -298,7 +314,7 @@ int main() {
     try {
         auto mkt_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::MARKET,
-            0.01, std::nullopt, godark::TimeInForce::IOC,
+            "0.01", std::nullopt, godark::TimeInForce::IOC,
             godark::PlaceOrderConfirmation::Book,
             godark::PlaceOrderOptions{.slippage_bps = 50});
         std::cout << "MARKET BUY placed: order_id=" << mkt_ack.order_id << "\n";
@@ -315,7 +331,7 @@ int main() {
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            0.05, sell_px, godark::TimeInForce::GTC,
+            "0.05", dec_str(sell_px), godark::TimeInForce::GTC,
             godark::PlaceOrderConfirmation::Book,
             godark::PlaceOrderOptions{.post_only = true});
         std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
@@ -355,9 +371,9 @@ int main() {
     std::vector<uint64_t> resting_ids;
     try {
         std::vector<godark::MassQuoteLegInput> ladder = {
-            {"BUY", round1(base * (1 - 0.003)), 0.02},
-            {"BUY", round1(base * (1 - 0.006)), 0.02},
-            {"BUY", round1(base * (1 - 0.009)), 0.02},
+            {"BUY", dec_str(round1(base * (1 - 0.003))), "0.02"},
+            {"BUY", dec_str(round1(base * (1 - 0.006))), "0.02"},
+            {"BUY", dec_str(round1(base * (1 - 0.009))), "0.02"},
         };
         auto mq = client.mass_quote(SYMBOL, ladder, std::nullopt);
         std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
@@ -398,7 +414,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.001}}, std::optional<bool>{true});
+            SYMBOL, {{"BUY", dec_str(cross_px), "0.001"}}, std::optional<bool>{true});
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
@@ -412,7 +428,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, 0.003}}, std::optional<bool>{false});
+            SYMBOL, {{"BUY", dec_str(cross_px), "0.003"}}, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status

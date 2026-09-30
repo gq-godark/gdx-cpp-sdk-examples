@@ -10,11 +10,27 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <string>
 #include <thread>
 
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
+
+
+std::string dec_str(double value) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(8) << value;
+    std::string s = oss.str();
+    auto dot = s.find('.');
+    if (dot != std::string::npos) {
+        while (!s.empty() && s.back() == '0') s.pop_back();
+        if (!s.empty() && s.back() == '.') s.pop_back();
+    }
+    if (s.empty() || s == "-0") s = "0";
+    return s;
+}
 
 static double live_mark_price() {
     if (const char* raw = std::getenv("GDX_LIVE_PRICE"); raw && raw[0]) {
@@ -93,8 +109,8 @@ int main() {
                 symbol,
                 godark::Side::SELL,
                 godark::OrderType::LIMIT,
-                0.01,
-                sell_px,
+                "0.01",
+                dec_str(sell_px),
                 godark::TimeInForce::GTC,
                 godark::PlaceOrderConfirmation::Book,
                 godark::PlaceOrderOptions{.post_only = true});

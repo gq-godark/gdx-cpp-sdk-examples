@@ -18,18 +18,19 @@ struct OrderAck {
 };
 
 /// Optional place-order flags mirrored from gdx-web / sequencer `PlaceOrderInput`.
+/// Prices and sizes are human decimal strings (e.g. `"67500.5"`), not floats.
 struct PlaceOrderOptions {
     bool reduce_only = false;
     bool post_only = false;
     StpMode stp_mode = StpMode::Unspecified;
     std::optional<int32_t> peg_offset_bps = std::nullopt;
-    std::optional<double> trigger_price = std::nullopt;
-    std::optional<double> take_profit_price = std::nullopt;
-    std::optional<double> stop_loss_price = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
+    std::optional<std::string> take_profit_price = std::nullopt;
+    std::optional<std::string> stop_loss_price = std::nullopt;
     /// Max walk vs mark for market / stop-market (basis points). unset → venue max.
     std::optional<uint32_t> slippage_bps = std::nullopt;
     /// Quote-currency notional. Exactly one of quantity or quote_notional is required.
-    std::optional<double> quote_notional = std::nullopt;
+    std::optional<std::string> quote_notional = std::nullopt;
 };
 
 /// Ack for account-wide `cancel_all`, `close_all`, or per-symbol `reverse`.
@@ -43,21 +44,22 @@ struct CountAck {
 
 /// One cancel-replace leg of a mass quote. `cancel_order_id` 0/nullopt = pure
 /// place; `time_in_force` defaults to "GTC"; `expiry_time` (ns) is required for GTD.
+/// `price` / `quantity` are decimal strings at the instrument scales.
 struct MassQuoteLegInput {
     std::string side;
-    double price = 0.0;
-    double quantity = 0.0;
+    std::string price;
+    std::string quantity;
     std::optional<uint64_t> cancel_order_id = std::nullopt;
     std::string time_in_force = "GTC";
     std::optional<uint64_t> expiry_time = std::nullopt;
 };
 
 /// One amend leg of a batch modify. At least one of new_price / new_quantity
-/// must be set.
+/// must be set (decimal strings).
 struct BatchModifyLegInput {
     uint64_t order_id = 0;
-    std::optional<double> new_price = std::nullopt;
-    std::optional<double> new_quantity = std::nullopt;
+    std::optional<std::string> new_price = std::nullopt;
+    std::optional<std::string> new_quantity = std::nullopt;
 };
 
 /// Outcome of one cancel-replace leg in a mass quote.

@@ -10,6 +10,8 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <string>
 #include <thread>
 
@@ -17,6 +19,20 @@
 #include "dotenv.hpp"
 
 namespace {
+
+std::string dec_str(double value) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(8) << value;
+    std::string s = oss.str();
+    auto dot = s.find('.');
+    if (dot != std::string::npos) {
+        while (!s.empty() && s.back() == '0') s.pop_back();
+        if (!s.empty() && s.back() == '.') s.pop_back();
+    }
+    if (s.empty() || s == "-0") s = "0";
+    return s;
+}
+
 const char* getenv_first(std::initializer_list<const char*> names) {
     for (const char* n : names) {
         if (const char* v = std::getenv(n); v && v[0] != '\0') return v;
@@ -81,14 +97,14 @@ int main() {
 
         const double price = rest_limit_price();
         auto ack = client.place_order("BTC-USDC-PERP", godark::Side::BUY, godark::OrderType::LIMIT,
-            0.01, price, godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
+            "0.01", dec_str(price), godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
             std::string("sdk-cpp-rest-demo"));
         std::cout << "placed order_id=" << ack.order_id << " success=" << std::boolalpha << ack.success
                   << "\n";
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        auto modify = client.modify_order(ack.order_id, "BTC-USDC-PERP", price - 64.0, std::nullopt);
+        auto modify = client.modify_order(ack.order_id, "BTC-USDC-PERP", dec_str(price - 64.0), std::nullopt);
         std::cout << "modified success=" << modify.success << "\n";
 
         auto cancel = client.cancel_order(ack.order_id, "BTC-USDC-PERP");

@@ -26,7 +26,7 @@ godark::GodarkClient client(config);
 client.connect();
 
 auto ack = client.place_order(
-    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, 0.01, 999999.0);
+    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
 
 client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();

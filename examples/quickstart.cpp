@@ -2,44 +2,29 @@
 //
 // Place a limit sell, then cancel it.
 // This MM distribution supports MARKET and LIMIT order placement only.
+// Prices and sizes are decimal strings only (never double/float).
 //
 // GODARK_API_KEY_ID=gdk_... GODARK_API_SECRET=... GODARK_PASSPHRASE=... ./quickstart
 // Optional: GODARK_EDGE_URL / GDX_HPKE_STATIC_PUBLIC_KEY
+// Optional: GDX_LIVE_PRICE / GODARK_E2E_PRICE — limit price decimal string
 
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 #include <string>
 #include <thread>
 
 #include <godark/godark.hpp>
 #include "dotenv.hpp"
 
-
-std::string dec_str(double value) {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(8) << value;
-    std::string s = oss.str();
-    auto dot = s.find('.');
-    if (dot != std::string::npos) {
-        while (!s.empty() && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
-    }
-    if (s.empty() || s == "-0") s = "0";
-    return s;
-}
-
-static double live_mark_price() {
+static const char* live_limit_price() {
     if (const char* raw = std::getenv("GDX_LIVE_PRICE"); raw && raw[0]) {
-        return std::stod(raw);
+        return raw;
     }
     if (const char* raw = std::getenv("GODARK_E2E_PRICE"); raw && raw[0]) {
-        return std::stod(raw);
+        return raw;
     }
-    return 79000.0;
+    return "81370";  // ~79000 * 1.03 resting sell
 }
 
 int main() {
@@ -103,19 +88,18 @@ int main() {
 
         const std::string symbol = "BTC-USDC-PERP";
         try {
-            const double mark = live_mark_price();
-            const double sell_px = std::round(mark * 1.03 * 10.0) / 10.0;
+            const std::string sell_px = live_limit_price();
             auto ack = client.place_order(
                 symbol,
                 godark::Side::SELL,
                 godark::OrderType::LIMIT,
                 "0.01",
-                dec_str(sell_px),
+                sell_px,
                 godark::TimeInForce::GTC,
                 godark::PlaceOrderConfirmation::Book,
                 godark::PlaceOrderOptions{.post_only = true});
             std::cout << "Place OK -- order_id=" << ack.order_id
-                      << " (limit SELL @ " << sell_px << ", mark=" << mark << ")\n";
+                      << " (limit SELL @ " << sell_px << ")\n";
 
             // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
             std::this_thread::sleep_for(std::chrono::milliseconds(500));

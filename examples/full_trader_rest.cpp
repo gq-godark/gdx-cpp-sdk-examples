@@ -1,37 +1,13 @@
 /// REST-only trader demo — auth + encrypted place/modify/cancel + snapshots.
-///
-///   ./full_trader_rest
-///
-/// Environment:
-///   GODARK_API_KEY_ID, GODARK_API_SECRET, GODARK_PASSPHRASE (or GODARK_API_KEY for localnet)
-///   GODARK_REST_URL (optional)
-///   GDX_LIVE_PRICE (optional; default 78000)
-
-#include <chrono>
+/// Prices and sizes are decimal strings only (never double/float).
 #include <cstdlib>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 #include <string>
-#include <thread>
 
-#include <godark/godark.hpp>
+#include <godark/rest_client.hpp>
 #include "dotenv.hpp"
 
 namespace {
-
-std::string dec_str(double value) {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(8) << value;
-    std::string s = oss.str();
-    auto dot = s.find('.');
-    if (dot != std::string::npos) {
-        while (!s.empty() && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
-    }
-    if (s.empty() || s == "-0") s = "0";
-    return s;
-}
 
 const char* getenv_first(std::initializer_list<const char*> names) {
     for (const char* n : names) {
@@ -40,15 +16,15 @@ const char* getenv_first(std::initializer_list<const char*> names) {
     return nullptr;
 }
 
-double live_price() {
-    if (const char* p = getenv_first({"GDX_LIVE_PRICE", "GODARK_LIVE_PRICE"})) {
-        return std::stod(p);
+/// Limit price as a decimal string. Override with GDX_LIVE_PRICE / GODARK_E2E_PRICE.
+const char* rest_limit_price() {
+    if (const char* p = getenv_first(
+            {"GDX_LIVE_PRICE", "GODARK_LIVE_PRICE", "GODARK_E2E_PRICE", "GDX_E2E_PRICE"})) {
+        return p;
     }
-    return 78000.0;
+    return "74000";
 }
-double rest_limit_price() {
-    return live_price() - 5000.0;
-}
+
 }  // namespace
 
 int main() {
@@ -59,29 +35,25 @@ int main() {
         if (const char* base = getenv_first({"GODARK_REST_URL", "GDX_REST_URL"})) {
             cfg.rest_base_url = base;
         }
-        if (const char* account = getenv_first({"GODARK_ACCOUNT", "GDX_ACCOUNT"})) {
-            cfg.account = account;
-        }
 
         const char* kid = getenv_first({"GODARK_API_KEY_ID", "GDX_API_KEY_ID"});
         const char* sec = getenv_first({"GODARK_API_SECRET", "GDX_API_SECRET"});
         const char* pass = getenv_first({"GODARK_PASSPHRASE", "GDX_PASSPHRASE"});
-        if (kid && sec && pass) {
+        if (const char* legacy = getenv_first({"GODARK_API_KEY", "GDX_API_KEY"})) {
+            cfg.legacy_api_key = legacy;
+        } else if (kid && sec && pass) {
             cfg.api_key_id = kid;
             cfg.api_secret = sec;
             cfg.passphrase = pass;
-        } else if (const char* legacy = getenv_first({"GODARK_API_KEY", "GDX_API_KEY"})) {
-            cfg.legacy_api_key = legacy;
         } else {
-            std::cerr << "Set GODARK_API_KEY_ID, GODARK_API_SECRET and GODARK_PASSPHRASE\n";
-            return 1;
+            cfg.legacy_api_key = "test-key-1";
         }
 
         godark::GodarkRestClient client{cfg};
         client.connect();
 
-        if (auto account = client.account()) {
-            std::cout << "identity account=" << *account
+        if (auto uid = client.account()) {
+            std::cout << "identity account=" << *uid
                       << " scope=" << client.token_scope().value_or("") << "\n";
         }
 
@@ -90,21 +62,18 @@ int main() {
         const auto positions = client.get_positions();
         std::cout << "positions " << positions.rows.size() << "\n";
         const auto account = client.get_account();
-        std::cout << "account identity=" << account.account << "\n";
         if (account.summary) {
             std::cout << "account total_collateral=" << account.summary->total_collateral << "\n";
         }
 
-        const double price = rest_limit_price();
+        const std::string price = rest_limit_price();
         auto ack = client.place_order("BTC-USDC-PERP", godark::Side::BUY, godark::OrderType::LIMIT,
-            "0.01", dec_str(price), godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
+            "0.01", price, godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
             std::string("sdk-cpp-rest-demo"));
         std::cout << "placed order_id=" << ack.order_id << " success=" << std::boolalpha << ack.success
-                  << "\n";
+                  << " @ " << price << "\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-        auto modify = client.modify_order(ack.order_id, "BTC-USDC-PERP", dec_str(price - 64.0), std::nullopt);
+        auto modify = client.modify_order(ack.order_id, "BTC-USDC-PERP", "73936", std::nullopt);
         std::cout << "modified success=" << modify.success << "\n";
 
         auto cancel = client.cancel_order(ack.order_id, "BTC-USDC-PERP");

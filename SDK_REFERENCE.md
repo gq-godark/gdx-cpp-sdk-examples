@@ -40,6 +40,11 @@ client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
 ```
 
+**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.01"`,
+`"68000.5"`). There are no `double` / `float` / integer overloads on place,
+modify, mass-quote, batch-modify, or TP-SL. Pass string literals (or env
+strings) — do not format from floating point at the API boundary.
+
 ## Configuration
 
 The MM examples expect:
@@ -145,11 +150,11 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
+| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity: string, price?: string, tif?)` | Place encrypted order (decimal strings) |
 | `update_leverage` | `OrderAck update_leverage(symbol, leverage)` | Set per-symbol account leverage |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
-| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?, new_trigger_price?)` | Modify price, quantity, and/or stop trigger |
-| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
+| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?: string, new_quantity?: string, new_trigger_price?: string)` | Modify price, quantity, and/or stop trigger |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs; leg `price`/`quantity` are strings) |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders in one request |
 | `batch_modify` | `BatchModifyAck batch_modify(symbol, legs)` | Amend multiple resting orders in one request |
 
@@ -226,8 +231,10 @@ the client itself.
 
 **Header:** `<godark/types.hpp>`
 
-Wire decimals and command prices/sizes are **decimal strings**
-(e.g. `"67500.5"`) so callers do not convert from `double`. Push types keep the
+Wire decimals and command prices/sizes are **decimal strings only**
+(e.g. `"67500.5"`). Public trading APIs accept `std::string` /
+`std::optional<std::string>` — never `double`/`float`. Values are validated
+against instrument `price_decimals` / `quantity_decimals`. Push types keep the
 same string form from the sequencer.
 
 ### OrderAck

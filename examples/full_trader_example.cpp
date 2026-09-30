@@ -11,12 +11,9 @@
 ///   8. Clean disconnect
 
 #include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,27 +33,14 @@ static std::string env_or(const char* name, const char* fallback) {
 }
 
 
-std::string dec_str(double value) {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(8) << value;
-    std::string s = oss.str();
-    auto dot = s.find('.');
-    if (dot != std::string::npos) {
-        while (!s.empty() && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
+// Prices/sizes are decimal strings only — never pass double/float to the SDK.
+static std::string env_price(const char* fallback) {
+    for (const char* key : {"GDX_LIVE_PRICE", "GODARK_E2E_PRICE", "GDX_E2E_PRICE"}) {
+        if (const char* v = std::getenv(key); v && v[0] != '\0') {
+            return v;
+        }
     }
-    if (s.empty() || s == "-0") s = "0";
-    return s;
-}
-
-static double live_mark_price() {
-    if (const char* raw = std::getenv("GDX_LIVE_PRICE"); raw && raw[0]) {
-        return std::stod(raw);
-    }
-    if (const char* raw = std::getenv("GODARK_E2E_PRICE"); raw && raw[0]) {
-        return std::stod(raw);
-    }
-    return 79000.0;
+    return fallback;
 }
 
 int main() {
@@ -136,7 +120,7 @@ int main() {
     // BTC-USDC-PERP is symbol_id 1; capture its live mark from snapshots so the
     // mass-quote ladder/cross prices below can anchor to the real touch instead
     // of a fixed constant.
-    std::optional<double> last_mark_btc;
+    std::optional<std::string> last_mark_btc;
 
     client.on_order_update = [&](const godark::OrderUpdate& u) {
         ++order_count;
@@ -173,7 +157,7 @@ int main() {
         for (const auto& row : s.rows) {
             if (row.symbol_id == 1 && row.mark_price) {
                 try {
-                    last_mark_btc = std::stod(*row.mark_price);
+                    last_mark_btc = *row.mark_price;
                 } catch (...) {
                 }
             }
@@ -272,15 +256,21 @@ int main() {
         std::cerr << "update_leverage failed: " << e.what() << "\n";
     }
 
-    const double mark = live_mark_price();
-    const double buy_px = std::round(mark * 0.997 * 10.0) / 10.0;
-    std::cout << "Placing limit BUY @ " << buy_px << " (mark=" << mark << ")...\n";
+    // Decimal string prices (override with GDX_LIVE_PRICE / GODARK_E2E_* companions).
+    const std::string buy_px = env_or("GDX_BUY_PRICE", "78763");
+    const std::string modify_px = env_or("GDX_MODIFY_PRICE", "78684");
+    const std::string sell_px = env_or("GDX_SELL_PRICE", "81370");
+    const std::string ladder1 = env_or("GDX_LADDER1", "63808");
+    const std::string ladder2 = env_or("GDX_LADDER2", "63616");
+    const std::string ladder3 = env_or("GDX_LADDER3", "63424");
+    const std::string cross_px = env_or("GDX_CROSS_PRICE", "67200");
+    std::cout << "Placing limit BUY @ " << buy_px << "...\n";
     godark::OrderAck buy_ack;
     bool have_buy = false;
     try {
         buy_ack = client.place_order(
             SYMBOL, godark::Side::BUY, godark::OrderType::LIMIT,
-            "0.1", dec_str(buy_px), godark::TimeInForce::GTC);
+            "0.1", buy_px, godark::TimeInForce::GTC);
         std::cout << "BUY placed: order_id=" << buy_ack.order_id
                   << "  sequence=" << buy_ack.sequence << "\n";
         have_buy = true;
@@ -293,10 +283,9 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     if (have_buy) {
-        const double modify_px = std::round(mark * 0.996 * 10.0) / 10.0;
         std::cout << "Modifying order price to " << modify_px << "...\n";
         try {
-            auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, dec_str(modify_px));
+            auto mod_ack = client.modify_order(buy_ack.order_id, SYMBOL, modify_px);
             std::cout << "Modified: order_id=" << mod_ack.order_id << "\n";
         } catch (const godark::OrderError& e) {
             std::cerr << "Modify rejected: " << fmt_err(e) << "\n";
@@ -326,12 +315,11 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    const double sell_px = std::round(mark * 1.03 * 10.0) / 10.0;
     std::cout << "Placing limit SELL @ " << sell_px << "...\n";
     try {
         auto sell_ack = client.place_order(
             SYMBOL, godark::Side::SELL, godark::OrderType::LIMIT,
-            "0.05", dec_str(sell_px), godark::TimeInForce::GTC,
+            "0.05", sell_px, godark::TimeInForce::GTC,
             godark::PlaceOrderConfirmation::Book,
             godark::PlaceOrderOptions{.post_only = true});
         std::cout << "SELL placed: order_id=" << sell_ack.order_id << "\n";
@@ -364,16 +352,15 @@ int main() {
     // MPC round. Pass std::optional<bool>{false} for the relaxed path, where a
     // crossing leg takes liquidity up to its limit and rests the remainder (the
     // number of taker fills is reported per leg as fill_count).
-    // Anchor to live BTC mark from the snapshot; fall back to GDX_BASE.
-    double base = last_mark_btc.value_or(std::stod(env_or("GDX_BASE", "64000")));
-    auto round1 = [](double x) { return std::round(x * 10.0) / 10.0; };
+    // Ladder prices are decimal strings (defaults ~0.3/0.6/0.9% below 64000).
+    const std::string base = last_mark_btc.value_or(env_or("GDX_BASE", "64000"));
     std::cout << "Mass-quoting a 3-level BUY ladder (post-only), base=" << base << "...\n";
     std::vector<uint64_t> resting_ids;
     try {
         std::vector<godark::MassQuoteLegInput> ladder = {
-            {"BUY", dec_str(round1(base * (1 - 0.003))), "0.02"},
-            {"BUY", dec_str(round1(base * (1 - 0.006))), "0.02"},
-            {"BUY", dec_str(round1(base * (1 - 0.009))), "0.02"},
+            {"BUY", ladder1, "0.02"},
+            {"BUY", ladder2, "0.02"},
+            {"BUY", ladder3, "0.02"},
         };
         auto mq = client.mass_quote(SYMBOL, ladder, std::nullopt);
         std::cout << "Mass quote: success=" << (mq.success ? "true" : "false")
@@ -409,12 +396,11 @@ int main() {
     }
 
     // Demonstrate the batch-level post_only flag on a crossing leg.
-    // Price a BUY ~5% above the live mark (within the ~10% oracle band).
-    double cross_px = round1(base * 1.05);
+    // Price a BUY above the ladder base (within the ~10% oracle band).
     std::cout << "Mass-quoting a crossing BUY with post_only=true (expect rejected/2018)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", dec_str(cross_px), "0.001"}}, std::optional<bool>{true});
+            SYMBOL, {{"BUY", cross_px, "0.001"}}, std::optional<bool>{true});
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status
                       << "  err=" << (r.error_code ? std::to_string(*r.error_code) : "-")
@@ -428,7 +414,7 @@ int main() {
     std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", dec_str(cross_px), "0.003"}}, std::optional<bool>{false});
+            SYMBOL, {{"BUY", cross_px, "0.003"}}, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status

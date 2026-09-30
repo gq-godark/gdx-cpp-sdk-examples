@@ -32,6 +32,11 @@ client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
 ```
 
+**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.01"`,
+`"68000.5"`). There are no `double` / `float` / integer overloads on place,
+modify, mass-quote, batch-modify, or TP-SL. Pass string literals (or env
+strings) — do not format from floating point at the API boundary.
+
 ## Configuration
 
 The MM examples expect:
@@ -77,10 +82,10 @@ auto-reconnects unless you called `disconnect()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
+| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity: string, price?: string, tif?)` | Place encrypted order (decimal strings) |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
-| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?, new_trigger_price?)` | Modify price, quantity, and/or stop trigger |
-| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder |
+| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?: string, new_quantity?: string, new_trigger_price?: string)` | Modify price, quantity, and/or stop trigger |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (leg `price`/`quantity` are strings) |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders |
 
 ### Streams
@@ -140,6 +145,10 @@ authentication, and HPKE setup remain single-flight.
 ## Core Types
 
 **Header:** `<godark/types.hpp>`
+
+Command prices/sizes and wire decimals are **decimal strings only**
+(e.g. `"67500.5"`). Public trading APIs take `std::string` /
+`std::optional<std::string>` — never `double`/`float`.
 
 ### OrderAck
 

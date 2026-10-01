@@ -129,6 +129,16 @@ public:
     /// Public `GET /api/v1/market-data/volume` (no connect required).
     nlohmann::json get_volume();
 
+    /// Bulk cancel-replace via encrypted `POST /api/v1/orders/massQuote`.
+    MassQuoteAck mass_quote(const std::string& symbol, const std::vector<MassQuoteLegInput>& legs,
+        std::optional<bool> post_only = std::nullopt);
+
+    /// Cancel up to 20 resting orders via encrypted `POST /api/v1/orders`.
+    BatchCancelAck batch_cancel(const std::string& symbol, const std::vector<uint64_t>& order_ids);
+
+    /// Post-only amend of price and/or quantity via encrypted `POST /api/v1/orders`.
+    BatchModifyAck batch_modify(const std::string& symbol, const std::vector<BatchModifyLegInput>& legs);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

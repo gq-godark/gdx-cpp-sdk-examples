@@ -151,6 +151,11 @@ struct OrderUpdate {
     std::string cum_fill;
     std::optional<CancelReason> cancel_reason = std::nullopt;
     std::optional<int64_t> reject_reason_code = std::nullopt;
+    /// Order-attached brackets echoed on the live order push.
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
+    std::optional<int32_t> peg_offset_bps = std::nullopt;
     int64_t correlation_id = 0;
     int64_t timestamp = 0;
     bool reduce_only = false;
@@ -236,6 +241,9 @@ struct PositionRow {
     std::optional<std::string> unrealized_pnl = std::nullopt;
     std::optional<std::string> notional = std::nullopt;
     std::optional<uint64_t> mark_publish_time_sec = std::nullopt;
+    /// Active order-attached brackets for this position (sequencer-local).
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
 };
 
 /// Full per-user positions batch (initial / periodic / event-triggered).
@@ -260,6 +268,19 @@ struct OpenOrderRow {
     std::string price;
     std::string quantity;
     std::string remaining_qty;
+    std::optional<Side> side = std::nullopt;
+    std::optional<OrderType> order_type = std::nullopt;
+    std::string filled_qty;
+    std::optional<OrderStatus> order_status = std::nullopt;
+    std::optional<TimeInForce> time_in_force = std::nullopt;
+    uint64_t timestamp = 0;
+    std::optional<uint64_t> expiry_time = std::nullopt;
+    bool reduce_only = false;
+    bool post_only = false;
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
+    std::optional<int32_t> peg_offset_bps = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
 };
 
 /// Encrypted `NodeResponse::OpenOrdersSnapshot` push (subscribe / UpdateLeverage refresh).

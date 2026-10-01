@@ -226,6 +226,11 @@ public:
     /// Full place-order overload. Pass `std::nullopt` for quantity and set
     /// `options.quote_notional` for quote-sized orders. Exactly one must be set.
     /// Also accepts AON, `min_fill_size`, and `expiry_time`.
+    ///
+    /// When `client_order_id` is set, a successful ack is followed immediately
+    /// by `POST /api/v1/orders/_register_coid` using this place's header
+    /// correlation id (decimal u128). A non-2xx response is thrown. The edge
+    /// arms that correlation only for WebSocket Place.
     OrderAck place_order(
         const std::string& symbol,
         Side side,
@@ -237,7 +242,8 @@ public:
         const PlaceOrderOptions& options,
         bool aon,
         std::optional<std::string> min_fill_size,
-        std::optional<uint64_t> expiry_time);
+        std::optional<uint64_t> expiry_time,
+        std::optional<std::string> client_order_id = std::nullopt);
 
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,

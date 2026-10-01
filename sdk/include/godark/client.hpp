@@ -142,8 +142,11 @@ struct ClientConfig {
     /// (testnet `wss://api.godark-dex.com`, Devnet `wss://api.devnet.godark-dex.com`;
     /// no public mainnet today).
     std::string base_url;
-    /// Optional user UUID. Falls back to GODARK_USER_UUID / GDX_USER_UUID env vars,
-    /// then to the auth response. Required for local edge instances that omit it.
+    /// Optional Solana account pubkey (base58). Normally resolved from the auth
+    /// response; explicit configuration is useful for local edge fixtures.
+    std::string account;
+    /// Deprecated UUID-era alias. Used only when `account` and account env vars
+    /// are unset.
     std::string user_uuid;
     /// 64-hex-character pinned HPKE sequencer static public key. Empty
     /// resolves as: this field > `GODARK_HPKE_STATIC_PUBLIC_KEY` (aliases
@@ -193,14 +196,18 @@ public:
     void logout();
 
     bool is_connected() const;
+    /// Authenticated Solana account pubkey (base58).
+    std::optional<std::string> account() const;
+    /// Deprecated compatibility alias for [`account()`].
     std::optional<std::string> user_uuid() const;
 
+    /// Prices and sizes are decimal strings (e.g. `"0.01"`, `"68000.5"`).
     OrderAck place_order(
         const std::string& symbol,
         Side side,
         OrderType order_type,
-        double quantity,
-        std::optional<double> price = std::nullopt,
+        const std::string& quantity,
+        std::optional<std::string> price = std::nullopt,
         TimeInForce tif = TimeInForce::GTC);
 
     /// Place an order with explicit confirmation semantics. Ack returns after
@@ -210,18 +217,40 @@ public:
         const std::string& symbol,
         Side side,
         OrderType order_type,
-        double quantity,
-        std::optional<double> price,
+        const std::string& quantity,
+        std::optional<std::string> price,
         TimeInForce tif,
         PlaceOrderConfirmation confirmation,
         const PlaceOrderOptions& options = {});
 
+    /// Full place-order overload. Pass `std::nullopt` for quantity and set
+    /// `options.quote_notional` for quote-sized orders. Exactly one must be set.
+    /// Also accepts AON, `min_fill_size`, and `expiry_time`.
+    ///
+    /// When `client_order_id` is set, a successful ack is followed immediately
+    /// by `POST /api/v1/orders/_register_coid` using this place's header
+    /// correlation id (decimal u128). A non-2xx response is thrown. The edge
+    /// arms that correlation only for WebSocket Place.
+    OrderAck place_order(
+        const std::string& symbol,
+        Side side,
+        OrderType order_type,
+        std::optional<std::string> quantity,
+        std::optional<std::string> price,
+        TimeInForce tif,
+        PlaceOrderConfirmation confirmation,
+        const PlaceOrderOptions& options,
+        bool aon,
+        std::optional<std::string> min_fill_size,
+        std::optional<uint64_t> expiry_time,
+        std::optional<std::string> client_order_id = std::nullopt);
+
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
     OrderAck modify_order(const std::string& order_id,
                           const std::string& symbol,
-                          std::optional<double> new_price = std::nullopt,
-                          std::optional<double> new_quantity = std::nullopt,
-                          std::optional<double> new_trigger_price = std::nullopt);
+                          std::optional<std::string> new_price = std::nullopt,
+                          std::optional<std::string> new_quantity = std::nullopt,
+                          std::optional<std::string> new_trigger_price = std::nullopt);
 
     /// Bulk cancel-replace (market-maker mass quote) on one symbol (up to 20
     /// legs), fused into one MPC round. Per-symbol leverage is account state;
@@ -249,11 +278,12 @@ public:
     CountAck reverse_position(const std::string& symbol);
 
     /// Amend / attach TP-SL on a resting order or open position.
+    /// TP/SL prices are decimal strings.
     TpslAck amend_tpsl(
         const std::string& symbol,
         const std::string& order_id,
-        std::optional<double> take_profit_price = std::nullopt,
-        std::optional<double> stop_loss_price = std::nullopt,
+        std::optional<std::string> take_profit_price = std::nullopt,
+        std::optional<std::string> stop_loss_price = std::nullopt,
         std::optional<Side> position_side = std::nullopt);
 
     /// Cancel TP/SL without cancelling the parent entry or flattening the position.

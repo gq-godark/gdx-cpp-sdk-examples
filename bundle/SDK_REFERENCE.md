@@ -5,9 +5,8 @@ distribution in this repository.
 
 WebSocket is the primary trading API via `godark::GodarkClient` and exposes
 the complete market-maker command surface. `godark::GodarkRestClient` also
-supports encrypted individual place / modify / cancel, account snapshots,
-and public reads. It does not currently expose REST wrappers for mass-quote,
-batch-cancel, or batch-modify.
+supports encrypted place / modify / cancel, mass-quote, batch-cancel,
+batch-modify, account snapshots, and public reads.
 
 Order placement support in this MM distribution is limited to `MARKET` and
 `LIMIT`.
@@ -20,10 +19,11 @@ Order placement support in this MM distribution is limited to `MARKET` and
 godark::ClientConfig config;
 config.api_key_id = "gdk_...";
 config.api_secret = "...";
+config.passphrase = "...";
 config.base_url   = "wss://api.godark-dex.com"; // optional override
 
 godark::GodarkClient client(config);
-client.connect();
+client.connect(); // REST access_token, then WebSocket login
 
 auto ack = client.place_order(
     "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
@@ -92,7 +92,7 @@ auto-reconnects unless you called `disconnect()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(channels)` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(channels)` | `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. Unknown channel throws immediately. No trades or L2 on `/ws/v1`. |
 | `unsubscribe` | `void unsubscribe(channels)` | Unsubscribe |
 | `try_recv_order` | `std::optional<OrderUpdate> try_recv_order()` | Non-blocking pull from order queue |
 | `try_recv_position` | `std::optional<PositionUpdate> try_recv_position()` | Non-blocking pull from position queue |
@@ -187,10 +187,9 @@ All enums provide string conversion helpers via `to_string(...)`.
 Note: the SDK enum includes additional order types for compatibility, but this
 MM distribution supports placing only `MARKET` and `LIMIT` orders.
 
-`PlaceOrderOptions` on `place_order` includes `peg_offset_bps`, `trigger_price`,
-`take_profit_price`, `stop_loss_price`, and `slippage_bps`. Omit `slippage_bps` to
-use the venue max walk cap (localnet 5%); typical explicit values are 50–500 bps
-(0.5%–5%). `PEG` pegs to the Pyth oracle mark.
+`PlaceOrderOptions` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, `stop_loss_price`, and `slippage_bps`. `slippage_bps` is only for `MARKET` and `STOP_MARKET`. `PEG` is not post-only. WebSocket place also accepts `aon`, `min_fill_size` (string), and `expiry_time`.
+
+Key-pair WebSocket login uses the REST `access_token` from `POST /api/v1/auth/token`, not `key_id:secret:passphrase`. A client-order id is registered only after a successful WebSocket place. The local map updates only on HTTP 200. A 400 is returned to the caller. REST place does not register the id.
 
 ## Errors
 
@@ -225,14 +224,13 @@ Use `GodarkRestClient::get_account()` for account margin / account info:
 |---|---|
 | Lifecycle / identity | `connect`, `disconnect`, `is_session_established`, `account`, `token_scope` |
 | Individual orders | `place_order`, `modify_order`, `cancel_order`, `cancel_order_by_client_id` |
+| Batches | `mass_quote`, `batch_cancel`, `batch_modify` |
 | Order reads | `get_order`, `get_order_by_client_id`, `await_terminal_status` |
 | Account state | `get_account`, `get_open_orders`, `get_positions`, `get_leverage`, `update_leverage` |
 | Profile / balance | `get_me`, `get_balance`, `get_my_balance` |
 | Public market data | `get_funding_rates`, `get_open_interest`, `get_volume` |
 
-The C++ REST client does **not** currently provide `mass_quote`,
-`batch_cancel`, or `batch_modify` wrappers. Use the primary
-`GodarkClient` WebSocket API for those operations and for streaming updates.
+REST exposes `mass_quote`, `batch_cancel`, and `batch_modify` as well as individual place / modify / cancel. Streaming updates stay on `GodarkClient`. REST place does not register a client-order id.
 See `examples/full_trader_rest.cpp` for encrypted individual REST trading.
 
 ## Example files in this distribution

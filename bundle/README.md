@@ -28,6 +28,8 @@ sudo apt-get install -y \
     libprotobuf-dev protobuf-compiler nlohmann-json3-dev ninja-build
 ```
 
+`libgodark.a` needs **OpenSSL 3.2+ with `openssl/hpke.h`**. If `libssl-dev` has no HPKE headers, configure with `-DOPENSSL_ROOT_DIR` pointing at an OpenSSL build that does.
+
 ## 2) Create testnet credentials
 
 1. Open frontend: `https://app.godark-dex.com`
@@ -76,10 +78,9 @@ cmake --build build
 ./build/examples/quickstart
 ```
 
-`quickstart` and `full_trader_example` use the primary WebSocket trading API.
-`full_trader_rest` demonstrates account snapshots and individual REST
-place / modify / cancel. REST mass-quote and batch wrappers are not currently
-available; use WebSocket for those operations.
+See the repository `README.md` participant walkthrough: REST `POST /api/v1/auth/token`, WebSocket login with that `access_token` (not `key_id:secret:passphrase`), subscribe to `orders`, `positions`, `volume`, `open_interest`, `funding_rate` (unknown channel throws immediately; no trades or L2 on `/ws/v1`), string prices and sizes, then read a position and cancel.
+
+`slippage_bps` is only for `MARKET` and `STOP_MARKET`. `PEG` is not post-only. WebSocket place also accepts `aon`, `min_fill_size` (string), and `expiry_time`. A client-order id is registered only after a successful WebSocket place; the local map updates only on HTTP 200, a 400 is returned to the caller, and REST place does not register it.
 
 ## CMake integration (your own bot)
 

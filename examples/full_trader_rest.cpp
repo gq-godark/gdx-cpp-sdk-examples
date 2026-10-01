@@ -67,6 +67,7 @@ int main() {
         }
 
         const std::string price = rest_limit_price();
+        // REST place forwards client_order_id on the body and does not register it.
         auto ack = client.place_order("BTC-USDC-PERP", godark::Side::BUY, godark::OrderType::LIMIT,
             "0.01", price, godark::TimeInForce::GTC, false, std::nullopt, std::nullopt,
             std::string("sdk-cpp-rest-demo"));

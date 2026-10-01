@@ -20,7 +20,7 @@ usual — only the `godark` SDK itself comes entirely from this repo.
 | OS | Linux x86_64 (matches published ZIPs; macOS / Windows untested) |
 | Compiler | C++20 toolchain, **GCC ≥ 13** recommended |
 | Build tools | **CMake ≥ 3.25**, Ninja (or another CMake generator) |
-| System libs | Boost (Beast / Asio / System), OpenSSL, Protobuf, nlohmann-json |
+| System libs | Boost (Beast / Asio / System), OpenSSL **3.2+ with `openssl/hpke.h`** (`OSSL_HPKE_*`), Protobuf, nlohmann-json |
 
 Install dependencies on Debian / Ubuntu:
 
@@ -47,10 +47,11 @@ Before running the examples, complete this setup flow:
 4. In the frontend, go to **Settings → API Key Management** and click **Create API Key**.
 5. Use the generated key ID and secret for your local `.env`.
 
-Encrypted trading requires a host with **OpenSSL 3.2+ HPKE** support to link
-`libgodark.a` locally. CI release builds use the HPKE-enabled toolchain; if local
-link fails with undefined `OSSL_HPKE_*` symbols, validate via CI or rebuild the
-SDK on an OpenSSL-with-HPKE host before refreshing `sdk/`.
+Encrypted trading links `libgodark.a` against **OpenSSL 3.2+** that ships
+`openssl/hpke.h`. Ubuntu’s default `libssl-dev` often does not. Point CMake at
+a build that does, for example
+`cmake -B build -DOPENSSL_ROOT_DIR=$HOME/.local/openssl-3.3`. If link fails on
+undefined `OSSL_HPKE_*`, install that OpenSSL before refreshing `sdk/`.
 
 ## Configure credentials
 
@@ -125,6 +126,27 @@ A preset is also available:
 cmake --preset release
 cmake --build build -j
 ```
+
+## Participant walkthrough
+
+Environment **names** (values stay in `.env`, never in source):
+
+- `GODARK_API_KEY_ID`, `GODARK_API_SECRET`, `GODARK_PASSPHRASE`
+- optional `GODARK_EDGE_URL`, `GODARK_REST_URL`, `GODARK_ACCOUNT`, `GDX_HPKE_STATIC_PUBLIC_KEY`, `GODARK_TLS_SKIP_VERIFY`
+
+**REST auth.** `GodarkRestClient::connect()` posts `api_key_id`, `api_secret`, and `passphrase` to `POST /api/v1/auth/token` and keeps the returned `access_token`. Legacy `GODARK_API_KEY` (local `test-key-*`) is sent as-is.
+
+**WebSocket login.** `GodarkClient::connect()` mints that same REST access token and logs in with it. The socket never carries `key_id:secret:passphrase`.
+
+**Subscribe.** Trading `subscribe` / `unsubscribe` accept `orders`, `positions`, `volume`, `open_interest`, and `funding_rate`. An unknown channel throws immediately (`ConnectionError`) instead of waiting out the command timeout. `/ws/v1` does not serve trades or L2; order book and trades need the gomarket socket (`GODARK_MARKET_DATA_USE_GOMARKET=1` or `GODARK_MARKET_DATA_WS_URL`).
+
+**Place.** Prices and sizes are `std::string` only (`"0.01"`, `"68000.5"`). There are no `double` overloads. `slippage_bps` applies only to `MARKET` and `STOP_MARKET`. `PEG` is not post-only. The full WebSocket place also takes `aon`, `min_fill_size` (decimal string), and `expiry_time`.
+
+**Client-order id.** It is registered only after a successful WebSocket place: `POST /api/v1/orders/_register_coid` with the header correlation id. The local map is updated only after HTTP 200. A 400 (or any non-2xx) is returned to the caller and the id is not stored. REST place forwards the id on the body and does **not** register it.
+
+**Read a position.** After `subscribe({"positions"})`, use `on_position_update` / `try_recv_position()`, or `GodarkRestClient::get_positions()`.
+
+**Cancel.** `cancel_order(order_id, symbol)` on either client, or `cancel_all_orders` on the WebSocket client.
 
 ## Examples
 

@@ -297,8 +297,8 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // Market IOC with explicit walk cap: 50 bps = 0.5% of mark (UI default).
-    // Omit slippage_bps → venue max (localnet 5%).
+    // slippage_bps is only valid on MARKET and STOP_MARKET.
+    // Omit it to use the venue max walk (localnet 5%). PEG is not post-only.
     std::cout << "Placing market IOC BUY qty=0.01 with slippage_bps=50 (0.5% walk)...\n";
     try {
         auto mkt_ack = client.place_order(

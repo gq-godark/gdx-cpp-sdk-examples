@@ -13,11 +13,10 @@ ABI ownership notes).
 
 > Scope: **WebSocket is the primary trading API** via
 > `godark::GodarkClient`, including the full market-maker command surface.
-> `godark::GodarkRestClient` also supports encrypted individual order
-> place / modify / cancel plus account snapshots and public reads. It does
-> not currently expose REST wrappers for mass-quote, batch-cancel, or
-> batch-modify. Order placement support in this distribution is limited to
-> `MARKET` and `LIMIT`.
+> `godark::GodarkRestClient` also supports encrypted place / modify / cancel,
+> `mass_quote`, `batch_cancel`, `batch_modify`, account snapshots, and public
+> reads. Sample programs place only `MARKET` and `LIMIT`. The SDK also accepts
+> `PEG`, `STOP_MARKET`, and `STOP_LIMIT`.
 
 ## Quick Start
 
@@ -31,7 +30,7 @@ config.passphrase = "...";
 config.base_url   = "wss://api.godark-dex.com"; // optional override
 
 godark::GodarkClient client(config);
-client.connect();
+client.connect(); // mints POST /api/v1/auth/token, logs in with access_token
 
 auto ack = client.place_order(
     "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
@@ -162,7 +161,7 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(channels)` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(channels)` | `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. Unknown channel throws immediately. No trades or L2 on `/ws/v1`. |
 | `unsubscribe` | `void unsubscribe(channels)` | Unsubscribe |
 | `try_recv_order` | `std::optional<OrderUpdate> try_recv_order()` | Non-blocking pull from order queue |
 | `try_recv_position` | `std::optional<PositionUpdate> try_recv_position()` | Non-blocking pull from position queue |
@@ -300,7 +299,13 @@ all open positions for the authenticated user. `rows` holds one
 
 All enums provide string conversion helpers via `to_string(...)`.
 
-`PlaceOrderOptions` on `place_order` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, `stop_loss_price`, and `slippage_bps`. Omit `slippage_bps` to use the venue max walk cap (localnet 5%); typical explicit values are 50–500 bps (0.5%–5%). `PEG` pegs to the Pyth oracle mark.
+`PlaceOrderOptions` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, `stop_loss_price`, and `slippage_bps`. `slippage_bps` is valid only on `MARKET` and `STOP_MARKET` (omit it to use the venue max walk). `PEG` pegs to the Pyth mark and is not post-only. The full WebSocket `place_order` also takes `aon`, `min_fill_size` (`std::optional<std::string>`), and `expiry_time` (ns).
+
+### WebSocket login and client-order ids
+
+Key-pair `connect()` calls `POST /api/v1/auth/token` and sends the REST `access_token` on the WebSocket login frame. It does not send `key_id:secret:passphrase`. Legacy `api_key` is still sent as-is.
+
+When `client_order_id` is set, registration runs only after a successful WebSocket place ack (`POST /api/v1/orders/_register_coid`, header correlation id as a decimal u128). The local map is written only after HTTP 200. A 400 is thrown back to the caller and the id is not stored. REST `place_order` does not register a client-order id; the edge arms place correlations only for WebSocket Place.
 
 Note: the SDK enum includes additional order types for compatibility, but this
 MM distribution supports placing only `MARKET` and `LIMIT` orders.
@@ -447,14 +452,13 @@ and individual REST place / modify / cancel.
 |---|---|
 | Lifecycle / identity | `connect`, `disconnect`, `is_session_established`, `account`, `token_scope` |
 | Individual orders | `place_order`, `modify_order`, `cancel_order`, `cancel_order_by_client_id` |
+| Batches | `mass_quote`, `batch_cancel`, `batch_modify` |
 | Order reads | `get_order`, `get_order_by_client_id`, `await_terminal_status` |
 | Account state | `get_account`, `get_open_orders`, `get_positions`, `get_leverage`, `update_leverage` |
 | Profile / balance | `get_me`, `get_balance`, `get_my_balance` |
 | Public market data | `get_funding_rates`, `get_open_interest`, `get_volume` |
 
-The C++ REST client does **not** currently provide `mass_quote`,
-`batch_cancel`, or `batch_modify` wrappers. Use `GodarkClient` over WebSocket
-for those operations.
+REST `mass_quote`, `batch_cancel`, and `batch_modify` send the same encrypted batches as the WebSocket client. REST place still does not call `_register_coid`.
 
 ### Account info
 

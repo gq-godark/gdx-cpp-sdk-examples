@@ -35,7 +35,9 @@ public:
         std::optional<std::string> api_secret;
         std::optional<std::string> passphrase;
         std::optional<std::string> rest_base_url;
-        /// Fallback when JWT omits `user_uuid` (local edge).
+        /// Fallback Solana account pubkey when auth/JWT omits `account`.
+        std::optional<std::string> account;
+        /// Deprecated UUID-era alias, used only when `account` is unset.
         std::optional<std::string> user_uuid;
         /// Pinned sequencer HPKE public key (hex). Resolves as: this field >
         /// `GDX_HPKE_STATIC_PUBLIC_KEY` (and aliases) > baked pin inferred from
@@ -56,24 +58,36 @@ public:
     GodarkRestClient& operator=(GodarkRestClient&&) noexcept;
 
     [[nodiscard]] bool is_session_established() const;
+    [[nodiscard]] std::optional<std::string> account() const;
+    /// Deprecated compatibility alias for [`account()`].
     [[nodiscard]] std::optional<std::string> user_uuid() const;
     [[nodiscard]] std::optional<std::string> token_scope() const;
 
     void connect();
     void disconnect();
 
-    OrderAck place_order(const std::string& symbol, Side side, OrderType order_type, double quantity,
-        std::optional<double> price, TimeInForce time_in_force, bool aon,
-        std::optional<double> min_fill_size, std::optional<uint64_t> expiry_time,
+    /// Prices and sizes are decimal strings (e.g. `"0.01"`, `"68000.5"`).
+    OrderAck place_order(const std::string& symbol, Side side, OrderType order_type,
+        const std::string& quantity, std::optional<std::string> price, TimeInForce time_in_force,
+        bool aon, std::optional<std::string> min_fill_size, std::optional<uint64_t> expiry_time,
         std::optional<std::string> client_order_id);
+
+    /// Full place-order overload with the same options as WebSocket Place.
+    /// Pass `std::nullopt` for quantity and set `options.quote_notional` for a
+    /// quote-sized order. Exactly one must be set.
+    OrderAck place_order(const std::string& symbol, Side side, OrderType order_type,
+        std::optional<std::string> quantity, std::optional<std::string> price,
+        TimeInForce time_in_force, bool aon, std::optional<std::string> min_fill_size,
+        std::optional<uint64_t> expiry_time, std::optional<std::string> client_order_id,
+        const PlaceOrderOptions& options);
 
     OrderAck cancel_order(const std::string& order_id, const std::string& symbol);
 
     OrderAck cancel_order_by_client_id(const std::string& client_order_id, const std::string& symbol);
 
     OrderAck modify_order(const std::string& order_id, const std::string& symbol,
-        std::optional<double> new_price, std::optional<double> new_quantity,
-        std::optional<double> new_trigger_price = std::nullopt);
+        std::optional<std::string> new_price, std::optional<std::string> new_quantity,
+        std::optional<std::string> new_trigger_price = std::nullopt);
 
     LeverageSettings get_leverage();
 
@@ -114,6 +128,16 @@ public:
 
     /// Public `GET /api/v1/market-data/volume` (no connect required).
     nlohmann::json get_volume();
+
+    /// Bulk cancel-replace via encrypted `POST /api/v1/orders/massQuote`.
+    MassQuoteAck mass_quote(const std::string& symbol, const std::vector<MassQuoteLegInput>& legs,
+        std::optional<bool> post_only = std::nullopt);
+
+    /// Cancel up to 20 resting orders via encrypted `POST /api/v1/orders`.
+    BatchCancelAck batch_cancel(const std::string& symbol, const std::vector<uint64_t>& order_ids);
+
+    /// Post-only amend of price and/or quantity via encrypted `POST /api/v1/orders`.
+    BatchModifyAck batch_modify(const std::string& symbol, const std::vector<BatchModifyLegInput>& legs);
 
 private:
     struct Impl;

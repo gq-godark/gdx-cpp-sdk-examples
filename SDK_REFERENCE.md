@@ -11,12 +11,12 @@ version intentionally omits sections that recipients don't need (vendored
 layout / pin discipline, refresh workflow, sourcing-from-git instructions,
 ABI ownership notes).
 
-> Scope: the MM examples use **WebSocket encrypted trading** via
-> `godark::GodarkClient`. Encrypted REST trading is not supported — all order
-> flow (place / modify / cancel / mass-quote) runs over the HPKE WebSocket
-> client. Standalone market-data clients ship in the same library but are
-> outside the bundled examples in this distribution. Order placement support
-> is limited to `MARKET` and `LIMIT`.
+> Scope: **WebSocket is the primary trading API** via
+> `godark::GodarkClient`, including the full market-maker command surface.
+> `godark::GodarkRestClient` also supports encrypted place / modify / cancel,
+> `mass_quote`, `batch_cancel`, `batch_modify`, account snapshots, and public
+> reads. Sample programs place only `MARKET` and `LIMIT`. The SDK also accepts
+> `PEG`, `STOP_MARKET`, and `STOP_LIMIT`.
 
 ## Quick Start
 
@@ -30,14 +30,19 @@ config.passphrase = "...";
 config.base_url   = "wss://api.godark-dex.com"; // optional override
 
 godark::GodarkClient client(config);
-client.connect();
+client.connect(); // mints POST /api/v1/auth/token, logs in with access_token
 
 auto ack = client.place_order(
-    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, 0.01, 999999.0);
+    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
 
 client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
 ```
+
+**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.01"`,
+`"68000.5"`). There are no `double` / `float` / integer overloads on place,
+modify, mass-quote, batch-modify, or TP-SL. Pass string literals (or env
+strings) — do not format from floating point at the API boundary.
 
 ## Configuration
 
@@ -46,6 +51,8 @@ The MM examples expect:
 - `GODARK_API_KEY_ID` (required)
 - `GODARK_API_SECRET` (required)
 - `GODARK_PASSPHRASE` (required for API key-pair auth)
+- `GODARK_ACCOUNT` / `GDX_ACCOUNT` (optional) — Solana account pubkey
+  override for local fixtures; normal auth returns it automatically
 - `GDX_HPKE_STATIC_PUBLIC_KEY` (required for encrypted WebSocket trading) — 64 hex chars; aliases `GDX_HPKE_STATIC_PUBKEY`, `GODARK_HPKE_STATIC_PUBLIC_KEY`
 - `GODARK_EDGE_URL` (optional, defaults to `wss://api.godark-dex.com`)
 
@@ -136,17 +143,17 @@ consumer site.
 | `disconnect` | `void disconnect()` | Graceful disconnect |
 | `logout` | `void logout()` | Logout and disconnect |
 | `is_connected` | `bool is_connected() const` | Connection state |
-| `user_uuid` | `std::optional<std::string> user_uuid() const` | Authenticated user id |
+| `account` | `std::optional<std::string> account() const` | Authenticated Solana account pubkey (base58) |
 
 ### Trading commands
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity, price?, tif?)` | Place encrypted order |
+| `place_order` | `OrderAck place_order(symbol, side, order_type, quantity: string, price?: string, tif?)` | Place encrypted order (decimal strings) |
 | `update_leverage` | `OrderAck update_leverage(symbol, leverage)` | Set per-symbol account leverage |
 | `cancel_order` | `OrderAck cancel_order(order_id, symbol)` | Cancel order |
-| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?, new_quantity?, new_trigger_price?)` | Modify price, quantity, and/or stop trigger |
-| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs) |
+| `modify_order` | `OrderAck modify_order(order_id, symbol, new_price?: string, new_quantity?: string, new_trigger_price?: string)` | Modify price, quantity, and/or stop trigger |
+| `mass_quote` | `MassQuoteAck mass_quote(symbol, legs, post_only?)` | Bulk cancel-replace ladder (up to 20 legs; leg `price`/`quantity` are strings) |
 | `batch_cancel` | `BatchCancelAck batch_cancel(symbol, order_ids)` | Cancel multiple resting orders in one request |
 | `batch_modify` | `BatchModifyAck batch_modify(symbol, legs)` | Amend multiple resting orders in one request |
 
@@ -154,7 +161,7 @@ consumer site.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `subscribe` | `void subscribe(channels)` | Subscribe to private channels (`orders`, `positions`) |
+| `subscribe` | `void subscribe(channels)` | `orders`, `positions`, `volume`, `open_interest`, `funding_rate`. Unknown channel throws immediately. No trades or L2 on `/ws/v1`. |
 | `unsubscribe` | `void unsubscribe(channels)` | Unsubscribe |
 | `try_recv_order` | `std::optional<OrderUpdate> try_recv_order()` | Non-blocking pull from order queue |
 | `try_recv_position` | `std::optional<PositionUpdate> try_recv_position()` | Non-blocking pull from position queue |
@@ -200,10 +207,9 @@ matching `try_recv_*()` queue fire for the same item.
 
 ### Concurrency rule
 
-**Single-flight commands**: `place_order`, `cancel_order`, and `modify_order`
-each block until the exchange responds or `transport.command_timeout_sec`
-expires. The transport maintains a single pending-command slot, so only one
-command may be in-flight at a time. Call them sequentially from one thread.
+Encrypted WebSocket order commands are multiplexed by correlation ID and may
+be in flight concurrently. Cleartext transport commands such as subscribe,
+authentication, and HPKE setup remain single-flight.
 
 Push streams above may be consumed concurrently from independent threads —
 that's the intended pattern in `full_trader_example.cpp`.
@@ -224,9 +230,11 @@ the client itself.
 
 **Header:** `<godark/types.hpp>`
 
-Wire decimals are exposed as **strings** on push types to preserve sequencer
-precision. Command APIs use `double` / `std::optional<double>` where noted on
-`place_order`.
+Wire decimals and command prices/sizes are **decimal strings only**
+(e.g. `"67500.5"`). Public trading APIs accept `std::string` /
+`std::optional<std::string>` — never `double`/`float`. Values are validated
+against instrument `price_decimals` / `quantity_decimals`. Push types keep the
+same string form from the sequencer.
 
 ### OrderAck
 
@@ -240,7 +248,7 @@ precision. Command APIs use `double` / `std::optional<double>` where noted on
 ### OrderUpdate
 
 Includes order lifecycle fields such as:
-`order_id`, `user_uuid`, `symbol_id`, `side`, `status`, `update_type`,
+`order_id`, `account`, `symbol_id`, `side`, `status`, `update_type`,
 `price`, `quantity`, `filled_qty`, `remaining_qty`, `cum_fill`,
 `cancel_reason`, `reject_reason`, `correlation_id`, `timestamp`.
 
@@ -250,7 +258,7 @@ Per-fill delta. Use this stream to drive incremental P&L / position
 accounting between `PositionsSnapshot` refreshes.
 
 Includes position lifecycle fields such as:
-`user_uuid`, `symbol_id`, `side`, `update_type`,
+`account`, `symbol_id`, `side`, `update_type`,
 `size`, `entry_price`, `previous_size`, `fill_price`, `fill_qty`,
 `correlation_id`, `timestamp`.
 
@@ -270,7 +278,7 @@ all open positions for the authenticated user. `rows` holds one
 | Type | Notable fields |
 |------|----------------|
 | `SystemHealthUpdate` | `total_nodes`, `accepting_orders`, `ready`, `degraded`, `exhausted`, `warming`, `draining`, `waiting` |
-| `BalanceUpdate` | `user_uuid`, `shielded_balance_raw`, `timestamp` |
+| `BalanceUpdate` | `account`, `shielded_balance_raw`, `timestamp` |
 | `MarginAlert` | `owner`, `symbol_id`, `tier`, `margin_ratio_bps`, `mark_price_bps`, `liquidation_price_bps`, `state_version`, `recovered`, `ts` |
 | `FundingRateUpdate` | `symbol_id`, `current_rate`, `predicted_rate`, `next_funding_time`, `timestamp` |
 | `SettlementUpdate` | `batch_id`, `status` (`SettlementBatchStatus`), `tx_signature`, `timestamp`, `affected_user_uuids` |
@@ -291,7 +299,13 @@ all open positions for the authenticated user. `rows` holds one
 
 All enums provide string conversion helpers via `to_string(...)`.
 
-`PlaceOrderOptions` on `place_order` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, and `stop_loss_price`. `PEG` pegs to the Pyth oracle mark.
+`PlaceOrderOptions` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, `stop_loss_price`, and `slippage_bps`. `slippage_bps` is valid only on `MARKET` and `STOP_MARKET` (omit it to use the venue max walk). `PEG` pegs to the Pyth mark and is not post-only. The full WebSocket `place_order` also takes `aon`, `min_fill_size` (`std::optional<std::string>`), and `expiry_time` (ns).
+
+### WebSocket login and client-order ids
+
+Key-pair `connect()` calls `POST /api/v1/auth/token` and sends the REST `access_token` on the WebSocket login frame. It does not send `key_id:secret:passphrase`. Legacy `api_key` is still sent as-is.
+
+When `client_order_id` is set, registration runs only after a successful WebSocket place ack (`POST /api/v1/orders/_register_coid`, header correlation id as a decimal u128). The local map is written only after HTTP 200. A 400 is thrown back to the caller and the id is not stored. REST `place_order` does not register a client-order id; the edge arms place correlations only for WebSocket Place.
 
 Note: the SDK enum includes additional order types for compatibility, but this
 MM distribution supports placing only `MARKET` and `LIMIT` orders.
@@ -423,9 +437,28 @@ deterministic across CI runs.
 
 **Header:** `<godark/rest_client.hpp>`
 
-`GodarkRestClient` handles REST auth and encrypted snapshot reads. Order flow (place / modify / cancel) remains WebSocket-only via `GodarkClient`.
+`GodarkRestClient` handles REST auth, encrypted individual order commands,
+encrypted snapshots, profile/balance reads, and public market-data reads.
+WebSocket remains the primary API and is required for streaming updates and
+the complete market-maker command surface.
 
-`rest_client_example` covers auth, `/auth/me`, leverage read, and public funding/OI/volume GETs. `full_trader_rest` adds encrypted snapshot reads and REST trading.
+`rest_client_example` covers auth, `/auth/me`, leverage, balance, and public
+funding/OI/volume reads. `full_trader_rest` demonstrates encrypted snapshots
+and individual REST place / modify / cancel.
+
+### Available methods
+
+| Category | Methods |
+|---|---|
+| Lifecycle / identity | `connect`, `disconnect`, `is_session_established`, `account`, `token_scope` |
+| Individual orders | `place_order`, `modify_order`, `cancel_order`, `cancel_order_by_client_id` |
+| Batches | `mass_quote`, `batch_cancel`, `batch_modify` |
+| Order reads | `get_order`, `get_order_by_client_id`, `await_terminal_status` |
+| Account state | `get_account`, `get_open_orders`, `get_positions`, `get_leverage`, `update_leverage` |
+| Profile / balance | `get_me`, `get_balance`, `get_my_balance` |
+| Public market data | `get_funding_rates`, `get_open_interest`, `get_volume` |
+
+REST `mass_quote`, `batch_cancel`, and `batch_modify` send the same encrypted batches as the WebSocket client. REST place still does not call `_register_coid`.
 
 ### Account info
 
@@ -435,7 +468,7 @@ Use `GodarkRestClient::get_account()` instead:
 
 | Method | Path | `request_type` | Reply |
 |---|---|---|---|
-| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account_margin_update`) |
+| `get_account()` | `POST /api/v1/account` | `get_account` | `AccountMarginUpdate` (`account` identity + optional `summary`) |
 
 Related snapshot reads:
 

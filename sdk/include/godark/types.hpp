@@ -18,14 +18,19 @@ struct OrderAck {
 };
 
 /// Optional place-order flags mirrored from gdx-web / sequencer `PlaceOrderInput`.
+/// Prices and sizes are human decimal strings (e.g. `"67500.5"`), not floats.
 struct PlaceOrderOptions {
     bool reduce_only = false;
     bool post_only = false;
     StpMode stp_mode = StpMode::Unspecified;
     std::optional<int32_t> peg_offset_bps = std::nullopt;
-    std::optional<double> trigger_price = std::nullopt;
-    std::optional<double> take_profit_price = std::nullopt;
-    std::optional<double> stop_loss_price = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
+    std::optional<std::string> take_profit_price = std::nullopt;
+    std::optional<std::string> stop_loss_price = std::nullopt;
+    /// Max walk vs mark for market / stop-market (basis points). unset → venue max.
+    std::optional<uint32_t> slippage_bps = std::nullopt;
+    /// Quote-currency notional. Exactly one of quantity or quote_notional is required.
+    std::optional<std::string> quote_notional = std::nullopt;
 };
 
 /// Ack for account-wide `cancel_all`, `close_all`, or per-symbol `reverse`.
@@ -39,21 +44,22 @@ struct CountAck {
 
 /// One cancel-replace leg of a mass quote. `cancel_order_id` 0/nullopt = pure
 /// place; `time_in_force` defaults to "GTC"; `expiry_time` (ns) is required for GTD.
+/// `price` / `quantity` are decimal strings at the instrument scales.
 struct MassQuoteLegInput {
     std::string side;
-    double price = 0.0;
-    double quantity = 0.0;
+    std::string price;
+    std::string quantity;
     std::optional<uint64_t> cancel_order_id = std::nullopt;
     std::string time_in_force = "GTC";
     std::optional<uint64_t> expiry_time = std::nullopt;
 };
 
 /// One amend leg of a batch modify. At least one of new_price / new_quantity
-/// must be set.
+/// must be set (decimal strings).
 struct BatchModifyLegInput {
     uint64_t order_id = 0;
-    std::optional<double> new_price = std::nullopt;
-    std::optional<double> new_quantity = std::nullopt;
+    std::optional<std::string> new_price = std::nullopt;
+    std::optional<std::string> new_quantity = std::nullopt;
 };
 
 /// Outcome of one cancel-replace leg in a mass quote.
@@ -130,6 +136,9 @@ struct TpslAck {
 
 struct OrderUpdate {
     std::string order_id;
+    /// Solana account pubkey (base58).
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     int64_t symbol_id;
     Side side;
@@ -142,6 +151,11 @@ struct OrderUpdate {
     std::string cum_fill;
     std::optional<CancelReason> cancel_reason = std::nullopt;
     std::optional<int64_t> reject_reason_code = std::nullopt;
+    /// Order-attached brackets echoed on the live order push.
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
+    std::optional<int32_t> peg_offset_bps = std::nullopt;
     int64_t correlation_id = 0;
     int64_t timestamp = 0;
     bool reduce_only = false;
@@ -151,6 +165,8 @@ struct OrderUpdate {
 };
 
 struct PositionUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     int64_t symbol_id;
     Side side;
@@ -170,6 +186,8 @@ struct LeverageSetting {
 };
 
 struct LeverageSettings {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     std::vector<LeverageSetting> settings;
     uint64_t server_timestamp = 0;
@@ -192,9 +210,10 @@ struct Balance {
 };
 
 // ---------------------------------------------------------------------------
-// Sequencer push types — mirrors `gdx.sequencer.v1.SequencerToEdgeMessage`
-// `oneof inner` arms beyond order/position. Surfaced via the corresponding
-// `on_*` callbacks and `try_recv_*()` queues on `GodarkClient`.
+// Sequencer push types. Encrypted push plaintexts are bare inner protobuf
+// messages selected by the clear ResponseHeader.message_type discriminator.
+// Supported variants are surfaced via the corresponding `on_*` callbacks and
+// `try_recv_*()` queues on `GodarkClient`.
 // ---------------------------------------------------------------------------
 
 /// Why a [`PositionsSnapshot`] was emitted.
@@ -222,10 +241,15 @@ struct PositionRow {
     std::optional<std::string> unrealized_pnl = std::nullopt;
     std::optional<std::string> notional = std::nullopt;
     std::optional<uint64_t> mark_publish_time_sec = std::nullopt;
+    /// Active order-attached brackets for this position (sequencer-local).
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
 };
 
 /// Full per-user positions batch (initial / periodic / event-triggered).
 struct PositionsSnapshot {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     std::vector<PositionRow> rows;
     /// Sequencer wall-clock (ns) when the batch was assembled.
@@ -244,6 +268,19 @@ struct OpenOrderRow {
     std::string price;
     std::string quantity;
     std::string remaining_qty;
+    std::optional<Side> side = std::nullopt;
+    std::optional<OrderType> order_type = std::nullopt;
+    std::string filled_qty;
+    std::optional<OrderStatus> order_status = std::nullopt;
+    std::optional<TimeInForce> time_in_force = std::nullopt;
+    uint64_t timestamp = 0;
+    std::optional<uint64_t> expiry_time = std::nullopt;
+    bool reduce_only = false;
+    bool post_only = false;
+    std::optional<std::string> take_profit = std::nullopt;
+    std::optional<std::string> stop_loss = std::nullopt;
+    std::optional<int32_t> peg_offset_bps = std::nullopt;
+    std::optional<std::string> trigger_price = std::nullopt;
 };
 
 /// Encrypted `NodeResponse::OpenOrdersSnapshot` push (subscribe / UpdateLeverage refresh).
@@ -266,6 +303,8 @@ struct SystemHealthUpdate {
 
 /// Updated shielded balance for the authenticated user.
 struct BalanceUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     uint64_t shielded_balance_raw = 0;
     uint64_t timestamp = 0;
@@ -287,9 +326,11 @@ struct AccountMarginSummary {
 
 /// Account-margin push / GetAccount snapshot for a user.
 struct AccountMarginUpdate {
+    std::string account;
+    /// Deprecated UUID-era alias; mirrors `account`.
     std::string user_uuid;
     uint64_t server_timestamp = 0;
-    std::optional<AccountMarginSummary> account = std::nullopt;
+    std::optional<AccountMarginSummary> summary = std::nullopt;
 };
 
 /// Margin tier transition / recovery for `(owner, symbol_id)`.

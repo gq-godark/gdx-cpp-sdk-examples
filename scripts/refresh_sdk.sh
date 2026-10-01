@@ -15,8 +15,8 @@
 #     against uncommitted state is not reproducible and would fail CI's
 #     parity check for unexplainable reasons.
 #   * Builds into a temp dir so the upstream worktree stays clean.
-#   * The gdx-proto submodule must be initialized in the upstream checkout
-#     (CMake reads .proto files from there).
+#   * Set GDX_PROTO_ROOT to a sibling checkout, or place gdx-proto under the
+#     upstream SDK checkout (CMake reads .proto files from there).
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -44,17 +44,26 @@ if [[ ! -f "$SRC/CMakeLists.txt" ]] || ! grep -q '^project(godark-cpp' "$SRC/CMa
   exit 1
 fi
 
-if [[ ! -d "$SRC/.git" ]]; then
+if ! git -C "$SRC" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "error: '$SRC' is not a git checkout — pin cannot be recorded" >&2
   exit 1
 fi
 
-# The build needs gdx-proto present (CMakeLists pulls .proto files from
-# the gdx-proto submodule). Fail early with a clear message instead of
-# letting CMake produce a confusing error later.
-if [[ ! -d "$SRC/gdx-proto/proto" ]]; then
-  echo "error: '$SRC/gdx-proto/proto' missing — initialize the gdx-proto submodule first:" >&2
-  echo "       git -C \"$SRC\" submodule update --init --recursive" >&2
+# The build needs gdx-proto. Accept the same explicit override as upstream
+# CMake, otherwise use a checkout under the SDK source tree.
+if [[ -n "${GDX_PROTO_ROOT:-}" ]]; then
+  if [[ -f "$GDX_PROTO_ROOT/gdx/common/v1/types.proto" ]]; then
+    PROTO_ROOT="$GDX_PROTO_ROOT"
+  elif [[ -f "$GDX_PROTO_ROOT/proto/gdx/common/v1/types.proto" ]]; then
+    PROTO_ROOT="$GDX_PROTO_ROOT/proto"
+  else
+    echo "error: GDX_PROTO_ROOT='$GDX_PROTO_ROOT' does not contain gdx/common/v1/types.proto" >&2
+    exit 1
+  fi
+elif [[ -f "$SRC/gdx-proto/proto/gdx/common/v1/types.proto" ]]; then
+  PROTO_ROOT="$SRC/gdx-proto/proto"
+else
+  echo "error: gdx-proto missing — set GDX_PROTO_ROOT or place it at '$SRC/gdx-proto'" >&2
   exit 1
 fi
 
@@ -96,7 +105,7 @@ trap 'rm -rf "$BUILD_DIR"' EXIT
 rm -rf "$DEST_SDK"
 mkdir -p "$DEST_SDK"
 
-cmake -S "$SRC" -B "$BUILD_DIR" -G Ninja \
+GDX_PROTO_ROOT="$PROTO_ROOT" cmake -S "$SRC" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DGODARK_BUILD_TESTS=OFF \
     -DGODARK_BUILD_EXAMPLES=OFF \

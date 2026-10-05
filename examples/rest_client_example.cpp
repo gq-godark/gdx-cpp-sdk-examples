@@ -39,43 +39,21 @@ int main() {
         godark::GodarkRestClient client{cfg};
 
         std::cout << "connecting (REST auth/token)...\n";
-        try {
-            client.connect();
-        } catch (const std::exception& e) {
-            std::cout << "connect skipped: " << e.what() << "\n";
-            std::cout << "REST example covers auth wiring; encrypted reads may require a supported REST host.\n";
-            std::cout << "For REST trading (place/modify/cancel), see full_trader_rest.\n";
-            return 0;
-        }
+        client.connect();
 
-        try {
-            auto me = client.get_me();
-            std::cout << "me: id=" << me.id << " wallet=" << me.wallet_address
-                      << " tier=" << me.tier << "\n";
-        } catch (const std::exception& e) {
-            std::cout << "get_me skipped: " << e.what() << "\n";
-        }
-
-        try {
-            auto lev = client.get_leverage();
-            std::cout << "leverage settings: " << lev.settings.size() << " entries\n";
-            std::cout << "  (WS push: on_leverage_settings in full_trader_example.cpp)\n";
-            for (std::size_t i = 0; i < lev.settings.size() && i < 5; ++i) {
-                const auto& row = lev.settings[i];
-                std::cout << "  symbol_id=" << row.symbol_id << " leverage=" << row.leverage
-                          << "\n";
-            }
-        } catch (const std::exception& e) {
-            std::cout << "get_leverage skipped: " << e.what() << "\n";
-        }
-
-        try {
-            auto bal = client.get_my_balance();
-            std::cout << "balance: shielded_raw=" << bal.shielded_balance_raw
-                      << " wallet_ui=" << bal.wallet_usdt_ui << "\n";
-        } catch (const std::exception& e) {
-            std::cout << "get_my_balance skipped: " << e.what() << "\n";
-        }
+        auto positions = client.get_positions();
+        auto orders = client.get_open_orders();
+        auto account = client.get_account();
+        auto funding = client.get_funding_rates();
+        auto interest = client.get_open_interest();
+        auto volume = client.get_volume();
+        std::cout << "positions: " << positions.rows.size() << " rows\n";
+        std::cout << "open_orders: " << orders.rows.size() << " rows\n";
+        std::cout << "account total_collateral="
+                  << (account.summary ? account.summary->total_collateral : "?") << "\n";
+        std::cout << "funding_rates: " << funding.size() << " rows\n";
+        std::cout << "open_interest: " << interest.size() << " rows\n";
+        std::cout << "volume: " << volume.dump() << "\n";
 
         std::cout << "REST reads succeeded.\n";
         std::cout << "For REST trading (place/modify/cancel), see full_trader_rest.\n";

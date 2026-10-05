@@ -3,7 +3,7 @@
 This package provides the GoDark C++ SDK and minimal examples for encrypted
 darkpool trading.
 
-Supported order types in this distribution: `MARKET`, `LIMIT`.
+Samples place post-only `LIMIT` orders priced from a live mark (size at most `0.001`). The SDK also accepts `MARKET` and `LIMIT`.
 
 ## Package contents
 

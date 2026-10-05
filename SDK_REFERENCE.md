@@ -15,8 +15,9 @@ ABI ownership notes).
 > `godark::GodarkClient`, including the full market-maker command surface.
 > `godark::GodarkRestClient` also supports encrypted place / modify / cancel,
 > `mass_quote`, `batch_cancel`, `batch_modify`, account snapshots, and public
-> reads. Sample programs place only `MARKET` and `LIMIT`. The SDK also accepts
-> `PEG`, `STOP_MARKET`, and `STOP_LIMIT`.
+> reads. Sample programs place post-only `LIMIT` orders priced from a live mark
+> (at least 500 away, size at most `0.001`, tick 0.5). The SDK also accepts
+> `MARKET`, `PEG`, `STOP_MARKET`, and `STOP_LIMIT`.
 
 ## Quick Start
 
@@ -32,15 +33,20 @@ config.base_url   = "wss://api.godark-dex.com"; // optional override
 godark::GodarkClient client(config);
 client.connect(); // mints POST /api/v1/auth/token, logs in with access_token
 
+// sell_px is at least 500 above a live mark, snapped up to the 0.5 tick.
+const std::string sell_px = live_post_only_sell;
 auto ack = client.place_order(
-    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
-
+    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT,
+    "0.001", sell_px, godark::TimeInForce::GTC,
+    godark::PlaceOrderConfirmation::Book,
+    godark::PlaceOrderOptions{.post_only = true});
+std::this_thread::sleep_for(std::chrono::seconds(1));
 client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
 ```
 
-**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.01"`,
-`"68000.5"`). There are no `double` / `float` / integer overloads on place,
+**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.001"`,
+`"86705.5"`). There are no `double` / `float` / integer overloads on place,
 modify, mass-quote, batch-modify, or TP-SL. Pass string literals (or env
 strings) — do not format from floating point at the API boundary.
 
@@ -307,8 +313,8 @@ Key-pair `connect()` calls `POST /api/v1/auth/token` and sends the REST `access_
 
 When `client_order_id` is set, registration runs only after a successful WebSocket place ack (`POST /api/v1/orders/_register_coid`, header correlation id as a decimal u128). The local map is written only after HTTP 200. A 400 is thrown back to the caller and the id is not stored. REST `place_order` does not register a client-order id; the edge arms place correlations only for WebSocket Place.
 
-Note: the SDK enum includes additional order types for compatibility, but this
-MM distribution supports placing only `MARKET` and `LIMIT` orders.
+Note: the SDK enum includes additional order types for compatibility. Sample
+programs place post-only `LIMIT` orders only, priced from a live mark.
 
 ## Errors
 
@@ -442,9 +448,10 @@ encrypted snapshots, profile/balance reads, and public market-data reads.
 WebSocket remains the primary API and is required for streaming updates and
 the complete market-maker command surface.
 
-`rest_client_example` covers auth, `/auth/me`, leverage, balance, and public
-funding/OI/volume reads. `full_trader_rest` demonstrates encrypted snapshots
-and individual REST place / modify / cancel.
+`rest_client_example` is read-only: auth plus positions, open orders, account
+collateral, and public funding/OI/volume. It does not call `/auth/me`, leverage,
+or balance. `full_trader_rest` demonstrates encrypted snapshots and one post-only
+REST place / modify / cancel priced from a live mark.
 
 ### Available methods
 

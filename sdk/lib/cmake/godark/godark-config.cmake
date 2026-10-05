@@ -31,6 +31,7 @@ find_dependency(Boost REQUIRED COMPONENTS system)
 find_dependency(OpenSSL REQUIRED)
 find_dependency(Protobuf REQUIRED)
 find_dependency(nlohmann_json CONFIG REQUIRED)
+find_dependency(ZLIB REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/godark-targets.cmake")
 

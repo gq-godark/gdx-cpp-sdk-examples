@@ -104,8 +104,8 @@ int main() {
             // Allow the resting order to settle before cancel (avoids CANCEL_TOO_SOON).
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-            auto cancel = client.cancel_all_orders(symbol);
-            std::cout << "cancel_all OK -- count=" << cancel.count << "\n";
+            auto cancel = client.cancel_order(ack.order_id, symbol);
+            std::cout << "cancel OK -- order_id=" << cancel.order_id << "\n";
         } catch (const godark::OrderError& e) {
             std::cerr << "Order rejected: " << e.what();
             if (e.error_code) std::cerr << " [" << *e.error_code << "]";

@@ -264,6 +264,7 @@ int main() {
     const std::string ladder2 = env_or("GDX_LADDER2", "63616");
     const std::string ladder3 = env_or("GDX_LADDER3", "63424");
     const std::string cross_px = env_or("GDX_CROSS_PRICE", "67200");
+    const std::string rest_px = env_or("GDX_REST_PRICE", "64000");
     std::cout << "Placing limit BUY @ " << buy_px << "...\n";
     godark::OrderAck buy_ack;
     bool have_buy = false;
@@ -297,23 +298,8 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // slippage_bps is only valid on MARKET and STOP_MARKET.
-    // Omit it to use the venue max walk (localnet 5%). PEG is not post-only.
-    std::cout << "Placing market IOC BUY qty=0.01 with slippage_bps=50 (0.5% walk)...\n";
-    try {
-        auto mkt_ack = client.place_order(
-            SYMBOL, godark::Side::BUY, godark::OrderType::MARKET,
-            "0.01", std::nullopt, godark::TimeInForce::IOC,
-            godark::PlaceOrderConfirmation::Book,
-            godark::PlaceOrderOptions{.slippage_bps = 50});
-        std::cout << "MARKET BUY placed: order_id=" << mkt_ack.order_id << "\n";
-    } catch (const godark::OrderError& e) {
-        std::cerr << "Market BUY rejected (continuing): " << fmt_err(e) << "\n";
-    } catch (const godark::Error& e) {
-        std::cerr << "Market BUY rejected (continuing): " << e.what() << "\n";
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // A market IOC can fill and leave a position. This sample does not send one.
+    std::cout << "Skipping market IOC so the sample does not open a position.\n";
 
     std::cout << "Placing limit SELL @ " << sell_px << "...\n";
     try {
@@ -385,12 +371,14 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     if (!resting_ids.empty()) {
-        std::cout << "cancel_all_orders (cleanup ladder)...\n";
-        try {
-            auto ca = client.cancel_all_orders(SYMBOL);
-            std::cout << "  cancel_all: count=" << ca.count << "\n";
-        } catch (const godark::Error& e) {
-            std::cerr << "cancel_all rejected: " << e.what() << "\n";
+        std::cout << "Cancelling " << resting_ids.size() << " ladder order(s) by id...\n";
+        for (auto id : resting_ids) {
+            try {
+                auto ca = client.cancel_order(std::to_string(id), SYMBOL);
+                std::cout << "  cancel order_id=" << ca.order_id << "\n";
+            } catch (const godark::Error& e) {
+                std::cerr << "cancel " << id << " rejected: " << e.what() << "\n";
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
@@ -411,10 +399,10 @@ int main() {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    std::cout << "Mass-quoting a crossing BUY with post_only=false (expect filled, fills>0)...\n";
+    std::cout << "Mass-quoting a resting BUY with post_only=false (cancelled by id)...\n";
     try {
         auto mq = client.mass_quote(
-            SYMBOL, {{"BUY", cross_px, "0.003"}}, std::optional<bool>{false});
+            SYMBOL, {{"BUY", rest_px, "0.003"}}, std::optional<bool>{false});
         std::vector<std::uint64_t> stray_ids;
         for (const auto& r : mq.results) {
             std::cout << "  leg " << r.leg_index << ": status=" << r.status

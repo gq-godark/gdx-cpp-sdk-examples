@@ -4,7 +4,7 @@ This repository is a market-maker-facing distribution for GoDark's C++ SDK.
 It includes:
 
 - a vendored **prebuilt static library** (`sdk/lib/libgodark.a`) plus public headers and CMake package config under `sdk/include/godark/` and `sdk/lib/cmake/godark/` — **no private package registry required**; the bundle ships everything a consumer needs to `find_package(godark)` and link
-- minimal darkpool trading examples (**market** and **limit** orders only in the samples)
+- minimal darkpool trading examples (post-only **limit** orders priced from a live mark)
 - a simple **`.env`** workflow (no shell `export` required)
 
 The vendored `sdk/` is rebuilt and parity-checked against upstream
@@ -140,7 +140,7 @@ Environment **names** (values stay in `.env`, never in source):
 
 **Subscribe.** Trading `subscribe` / `unsubscribe` accept `orders`, `positions`, `volume`, `open_interest`, and `funding_rate`. An unknown channel throws immediately (`ConnectionError`) instead of waiting out the command timeout. `/ws/v1` does not serve trades or L2; order book and trades need the gomarket socket (`GODARK_MARKET_DATA_USE_GOMARKET=1` or `GODARK_MARKET_DATA_WS_URL`).
 
-**Place.** Prices and sizes are `std::string` only (`"0.01"`, `"68000.5"`). There are no `double` overloads. `slippage_bps` applies only to `MARKET` and `STOP_MARKET`. `PEG` is not post-only. The full WebSocket place also takes `aon`, `min_fill_size` (decimal string), and `expiry_time`.
+**Place.** Prices and sizes are `std::string` only (`"0.001"`, `"86705.5"`). There are no `double` overloads. The samples send a post-only limit at least 500 away from a live mark, size at most `0.001`, on the 0.5 tick. `slippage_bps` applies only to `MARKET` and `STOP_MARKET`. `PEG` is not post-only. The full WebSocket place also takes `aon`, `min_fill_size` (decimal string), and `expiry_time`.
 
 **Client-order id.** It is registered only after a successful WebSocket place: `POST /api/v1/orders/_register_coid` with the header correlation id. The local map is updated only after HTTP 200. A 400 (or any non-2xx) is returned to the caller and the id is not stored. REST place forwards the id on the body and does **not** register it.
 
@@ -152,14 +152,16 @@ Environment **names** (values stay in `.env`, never in source):
 
 | Target | Source | Purpose |
 |--------|--------|---------|
-| `quickstart` | `examples/quickstart.cpp` | Minimal connect → `subscribe({"orders"})` → LIMIT sell far from touch → cancel (book confirmation needs the private orders channel; Linux x86_64 ZIP) |
-| `full_trader_example` | `examples/full_trader_example.cpp` | Primary WebSocket reference bot with callbacks for all sequencer push variants, place / modify / cancel, mass-quote / batch-cancel, session summary |
-| `full_trader_rest` | `examples/full_trader_rest.cpp` | REST auth, canonical account identity, snapshots, and individual place / modify / cancel |
-| `rest_client_example` | `examples/rest_client_example.cpp` | REST profile, leverage, balance, and public market-data reads |
+| `quickstart` | `examples/quickstart.cpp` | Minimal connect → `subscribe({"orders"})` → post-only LIMIT sell at least 500 above the live mark → cancel that order |
+| `full_trader_example` | `examples/full_trader_example.cpp` | Primary WebSocket reference bot with callbacks, post-only place / modify / cancel, mass-quote / batch-cancel of its own orders, session summary |
+| `full_trader_rest` | `examples/full_trader_rest.cpp` | REST auth, snapshots, and one post-only place / modify / cancel priced from the live mark |
+| `rest_client_example` | `examples/rest_client_example.cpp` | Read-only REST: positions, open orders, account collateral, and public funding / open interest / volume |
 
-Order-type support in this MM distribution is limited to **`MARKET`** and
-**`LIMIT`**. See `bundle/SDK_REFERENCE.md` (shipped at the archive root as
-`SDK_REFERENCE.md`) for the full API.
+Samples place **post-only `LIMIT`** orders only. They read a live mark (open-interest
+notional/size, or a position snapshot that actually carries a mark) and exit
+non-zero without placing if that mark is missing. The SDK also accepts `MARKET`.
+See `bundle/SDK_REFERENCE.md` (shipped at the archive root as `SDK_REFERENCE.md`)
+for the full API.
 
 ## Packaging for market makers
 

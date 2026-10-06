@@ -339,11 +339,15 @@ public:
     std::function<void(const SystemHealthUpdate&)> on_system_health;
     /// Updated shielded balance for the authenticated user.
     std::function<void(const BalanceUpdate&)> on_balance_update;
-    /// Margin tier transitions / recoveries for `(owner, symbol_id)`.
+    /// Margin tier transitions. The current edge does not emit `margin_alert`.
+    /// Account margin arrives as `account_margin_update`; use `on_account_margin`.
     std::function<void(const MarginAlert&)> on_margin_alert;
+    /// Encrypted account-margin push (`account_margin_update`).
+    std::function<void(const AccountMarginUpdate&)> on_account_margin;
     /// Per-symbol funding-rate ticks.
     std::function<void(const FundingRateUpdate&)> on_funding_rate_update;
-    /// Settlement batch lifecycle updates.
+    /// Settlement batch lifecycle updates. The current edge does not emit
+    /// `settlement_update`.
     std::function<void(const SettlementUpdate&)> on_settlement_update;
     /// Authoritative per-user leverage settings (initial subscribe / update_leverage).
     std::function<void(const LeverageSettings&)> on_leverage_settings;

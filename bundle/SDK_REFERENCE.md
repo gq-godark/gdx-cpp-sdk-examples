@@ -8,8 +8,8 @@ the complete market-maker command surface. `godark::GodarkRestClient` also
 supports encrypted place / modify / cancel, mass-quote, batch-cancel,
 batch-modify, account snapshots, and public reads.
 
-Order placement support in this MM distribution is limited to `MARKET` and
-`LIMIT`.
+Sample programs place post-only `LIMIT` orders priced from a live mark (at least
+500 away, size at most `0.001`, tick 0.5). The SDK also accepts `MARKET`.
 
 ## Quick Start
 
@@ -25,15 +25,20 @@ config.base_url   = "wss://api.godark-dex.com"; // optional override
 godark::GodarkClient client(config);
 client.connect(); // REST access_token, then WebSocket login
 
+// sell_px is at least 500 above a live mark, snapped up to the 0.5 tick.
+const std::string sell_px = live_post_only_sell;
 auto ack = client.place_order(
-    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT, "0.01", "999999");
-
+    "BTC-USDC-PERP", godark::Side::SELL, godark::OrderType::LIMIT,
+    "0.001", sell_px, godark::TimeInForce::GTC,
+    godark::PlaceOrderConfirmation::Book,
+    godark::PlaceOrderOptions{.post_only = true});
+std::this_thread::sleep_for(std::chrono::seconds(1));
 client.cancel_order(ack.order_id, "BTC-USDC-PERP");
 client.disconnect();
 ```
 
-**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.01"`,
-`"68000.5"`). There are no `double` / `float` / integer overloads on place,
+**Rule:** prices and sizes are decimal `std::string` only (e.g. `"0.001"`,
+`"86705.5"`). There are no `double` / `float` / integer overloads on place,
 modify, mass-quote, batch-modify, or TP-SL. Pass string literals (or env
 strings) — do not format from floating point at the API boundary.
 
@@ -185,7 +190,7 @@ Includes position lifecycle fields such as:
 All enums provide string conversion helpers via `to_string(...)`.
 
 Note: the SDK enum includes additional order types for compatibility, but this
-MM distribution supports placing only `MARKET` and `LIMIT` orders.
+Sample programs place post-only `LIMIT` orders only, priced from a live mark.
 
 `PlaceOrderOptions` includes `peg_offset_bps`, `trigger_price`, `take_profit_price`, `stop_loss_price`, and `slippage_bps`. `slippage_bps` is only for `MARKET` and `STOP_MARKET`. `PEG` is not post-only. WebSocket place also accepts `aon`, `min_fill_size` (string), and `expiry_time`.
 
@@ -240,7 +245,7 @@ See `examples/full_trader_rest.cpp` for encrypted individual REST trading.
 | `examples/quickstart.cpp` | Minimal connect, place, cancel |
 | `examples/full_trader_example.cpp` | Reference bot flow: callbacks, place / modify / cancel, mass-quote / batch-cancel, session summary |
 | `examples/full_trader_rest.cpp` | REST auth, canonical account identity, snapshots, and individual place / modify / cancel |
-| `examples/rest_client_example.cpp` | REST profile, leverage, balance, and public market-data reads |
+| `examples/rest_client_example.cpp` | Read-only REST: positions, open orders, account collateral, and public funding / open interest / volume |
 
 ## CMake integration
 
